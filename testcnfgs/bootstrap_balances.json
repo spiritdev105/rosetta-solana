@@ -1,0 +1,22 @@
+[
+    {
+        "account_identifier": {
+            "address": "6sSFkiuWq7tq3ZZzzmmVTZfzExdBEgXELZDWVWVXoJhn"
+        },
+        "currency": {
+            "symbol": "SOL",
+            "decimals": 9
+        },
+        "value": "1"
+    },
+    {
+        "account_identifier": {
+            "address": "Cnqmx3sbJf35852dAWvwf7GhuxMGWm5gGgw3biebSsBM"
+        },
+        "currency": {
+            "symbol": "SOL",
+            "decimals": 9
+        },
+        "value": "691000"
+    }
+]

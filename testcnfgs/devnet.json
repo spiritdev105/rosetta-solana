@@ -1,0 +1,35 @@
+{
+    "network": {
+        "blockchain": "solana",
+        "network": "devnet"
+    },
+    "data_directory": "cli-data",
+    "http_timeout": 30000,
+    "max_retries": 15,
+    "max_online_connections": 500,
+    "max_sync_concurrency": 64,
+    "tip_delay": 120,
+    "compression_disabled": true,
+    "memory_limit_disabled": true,
+    "construction": {
+        "stale_depth": 3,
+        "broadcast_limit": 5,
+        "constructor_dsl_file": "solana.ros",
+        "end_conditions": {
+            "transfer": 2
+        }
+    },
+    "data": {
+        "start_index": 31195318,
+        "initial_balance_fetch_disabled": true,
+        "active_reconciliation_concurrency": 32,
+        "bootstrap_balances": "bootstrap_balances.json",
+        "end_conditions": {
+            "index": 31195418,
+            "reconciliation_coverage": {
+                "coverage": 0.95,
+                "from_tip": true
+            }
+        }
+    }
+}
