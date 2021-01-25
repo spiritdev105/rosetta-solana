@@ -3,7 +3,9 @@ use std::io::Cursor;
 use crate::types::{self, ErrorDetails};
 use rocket::http::{hyper::StatusCode, Status};
 use solana_client::client_error::ClientError;
-use solana_sdk::{pubkey::ParsePubkeyError, signature::ParseSignatureError};
+use solana_sdk::{
+    program_error::ProgramError, pubkey::ParsePubkeyError, signature::ParseSignatureError,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -11,14 +13,14 @@ pub enum ApiError {
     #[error("{0}")]
     //PlaceHolder for any errors
     PlaceHolderError(String),
-    #[error("bad block request")]
-    BadBlockRequest,
+    #[error("bad request")]
+    BadRequest,
+    #[error("programerror {0}")]
+    ProgramError(#[from] ProgramError),
     #[error("curve not supported")]
     UnsupportedCurve,
     #[error("invalid signed transaction")]
     InvalidSignedTransaction,
-    //#[error("diem error: {0:?}")]
-    //DiemError(#[from] diem::DiemError),
     #[error("bad network")]
     BadNetwork,
     #[error("deserialization failed: {0}")]
@@ -56,15 +58,13 @@ pub enum ApiError {
     #[error("Base64DecodeError")]
     Base64DecodeError(#[from] base64::DecodeError),
 }
-
 impl ApiError {
     pub fn code(&self) -> u64 {
         match self {
             ApiError::PlaceHolderError(_) => 19,
-            ApiError::BadBlockRequest => 20,
+            ApiError::BadRequest => 20,
             ApiError::UnsupportedCurve => 21,
             ApiError::InvalidSignedTransaction => 22,
-            //ApiError::DiemError(_) => 30,
             ApiError::BadNetwork => 40,
             ApiError::DeserializationFailed(_) => 50,
             //ApiError::SerializationFailed(_) => 60,
@@ -83,16 +83,16 @@ impl ApiError {
             ApiError::ParsePubkeyError(_) => 190,
             ApiError::ParseSignatureError(_) => 200,
             ApiError::Base64DecodeError(_) => 210,
+            ApiError::ProgramError(_) => 220,
         }
     }
 
     pub fn retriable(&self) -> bool {
         match self {
             ApiError::PlaceHolderError(_) => false,
-            ApiError::BadBlockRequest => false,
+            ApiError::BadRequest => false,
             ApiError::UnsupportedCurve => false,
             ApiError::InvalidSignedTransaction => false,
-            //ApiError::DiemError(_) => true,
             ApiError::BadNetwork => false,
             ApiError::DeserializationFailed(_) => false,
             //ApiError::SerializationFailed(_) => false,
@@ -111,16 +111,16 @@ impl ApiError {
             ApiError::ParsePubkeyError(_) => false,
             ApiError::ParseSignatureError(_) => false,
             ApiError::Base64DecodeError(_) => false,
+            ApiError::ProgramError(_) => false,
         }
     }
 
     pub fn status_code(&self) -> StatusCode {
         match self {
             ApiError::PlaceHolderError(_) => StatusCode::InternalServerError,
-            ApiError::BadBlockRequest => StatusCode::BadRequest,
+            ApiError::BadRequest => StatusCode::BadRequest,
             ApiError::UnsupportedCurve => StatusCode::InternalServerError,
             ApiError::InvalidSignedTransaction => StatusCode::InternalServerError,
-            //ApiError::DiemError(_) => StatusCode::InternalServerError,
             ApiError::BadNetwork => StatusCode::BadRequest,
             ApiError::DeserializationFailed(_) => StatusCode::BadRequest,
             //ApiError::SerializationFailed(_) => StatusCode::BadRequest,
@@ -139,6 +139,7 @@ impl ApiError {
             ApiError::ParsePubkeyError(_) => StatusCode::InternalServerError,
             ApiError::ParseSignatureError(_) => StatusCode::InternalServerError,
             ApiError::Base64DecodeError(_) => StatusCode::InternalServerError,
+            ApiError::ProgramError(_) => StatusCode::InternalServerError,
         }
     }
 
@@ -163,12 +164,6 @@ impl ApiError {
                 message: "bad block request".to_string(),
                 code: 20,
                 retriable: false,
-                details: None,
-            },
-            types::Error {
-                message: "diem error".to_string(),
-                code: 30,
-                retriable: true,
                 details: None,
             },
             types::Error {

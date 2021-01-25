@@ -1,6 +1,8 @@
-use crate::{error::ApiError, is_bad_network, operations::combine_related_operations, Options};
 use crate::{
-    operations::get_operations_from_encoded_tx,
+    error::ApiError, is_bad_network, operations::utils::combine_related_operations, Options,
+};
+use crate::{
+    operations::utils::get_operations_from_encoded_tx,
     types::{
         AccountIdentifier, ConstructionCombineRequest, ConstructionCombineResponse,
         ConstructionDeriveRequest, ConstructionDeriveResponse, ConstructionHashRequest,
@@ -107,9 +109,30 @@ pub fn construction_payloads(
         return Err(ApiError::BadTransactionPayload);
     }
     let unsigned_transaction = bs58::encode(v.unwrap()).into_string();
-
     let to_be_signed = hex::encode(tx.message.serialize());
-    let payloads = vec![SigningPayload {
+    let signing_payloads = tx
+        .message
+        .account_keys
+        .iter()
+        .enumerate()
+        .map(|(i, pubk)| {
+            if tx.message.is_signer(i) {
+                Some(SigningPayload {
+                    account_identifier: Some(AccountIdentifier {
+                        address: bs58::encode(pubk.to_bytes()).into_string(),
+                        sub_account: None,
+                    }),
+                    hex_bytes: to_be_signed.clone(),
+                    signature_type: Some(SignatureType::Ed25519),
+                })
+            } else {
+                None
+            }
+        })
+        .take_while(|e| e.is_some())
+        .collect::<Vec<Option<SigningPayload>>>();
+    /*
+    vec![SigningPayload {
         account_identifier: Some(AccountIdentifier {
             address: bs58::encode(tx.message.account_keys[0].to_bytes()).into_string(),
             sub_account: None,
@@ -117,9 +140,10 @@ pub fn construction_payloads(
         hex_bytes: to_be_signed,
         signature_type: Some(SignatureType::Ed25519),
     }];
+    */
     let response = ConstructionPayloadsResponse {
         unsigned_transaction,
-        payloads,
+        payloads: signing_payloads,
     };
     Ok(Json(response))
 }
@@ -194,7 +218,6 @@ pub fn construction_combine(
     let response = ConstructionCombineResponse {
         signed_transaction: bs58::encode(v.unwrap()).into_string(),
     };
-    println!("{:?}", response);
     Ok(Json(response))
 }
 
@@ -266,41 +289,45 @@ mod tests {
 
     use super::*;
     #[test]
+    #[ignore]
     fn test_construction_transfer() {
-        let parsed = constructions_pipe(vec![
-            Operation {
-                operation_identifier: OperationIdentifier {
-                    index: 0,
-                    network_index: None,
+        let parsed = constructions_pipe(
+            vec![
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 0,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::System__Transfer,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "destination": dest(),
+                        "lamports": 10000,
+                    })),
                 },
-                related_operations: None,
-                status: None,
-                account: None,
-                amount: None,
-                type_: OperationType::System__Transfer,
-                metadata: Some(json!({
-                    "source": source(),
-                    "destination": dest(),
-                    "lamports": 10000,
-                })),
-            },
-            Operation {
-                operation_identifier: OperationIdentifier {
-                    index: 0,
-                    network_index: None,
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 0,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::System__Transfer,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "destination": dest(),
+                        "lamports": 10000,
+                    })),
                 },
-                related_operations: None,
-                status: None,
-                account: None,
-                amount: None,
-                type_: OperationType::System__Transfer,
-                metadata: Some(json!({
-                    "source": source(),
-                    "destination": dest(),
-                    "lamports": 10000,
-                })),
-            },
-        ]);
+            ],
+            vec![main_account_keypair()],
+        );
 
         assert_eq!(
             parsed.operations[0].to_instruction().unwrap().accounts[0]
@@ -316,106 +343,168 @@ mod tests {
         );
     }
     #[test]
+    #[ignore]
     fn test_token_transfer_rosetta_style() {
         let rpc = create_rpc_client("https://devnet.solana.com".to_string());
-        let parsed = constructions_pipe(vec![
-            Operation {
-                operation_identifier: OperationIdentifier {
-                    index: 10,
-                    network_index: None,
-                },
-                related_operations: Some(vec![OperationIdentifier {
-                    index: 11,
-                    network_index: None,
-                }]),
-                status: None,
-                account: Some(AccountIdentifier {
-                    address: "95Dq3sXa3omVjiyxBSD6UMrzPYdmyu6CFCw5wS4rhqgV".to_string(),
-                    sub_account: None,
-                }),
-                amount: Some(Amount {
-                    value: "-10".to_string(),
-                    currency: Currency {
-                        symbol: "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
-                        decimals: 2,
+        let parsed = constructions_pipe(
+            vec![
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 10,
+                        network_index: None,
                     },
-                }),
-                type_: OperationType::SplToken__TransferChecked,
-                metadata: Some(json!({
-                    "authority": source(),
-                })),
-            },
-            Operation {
-                operation_identifier: OperationIdentifier {
-                    index: 11,
-                    network_index: None,
+                    related_operations: None,
+                    status: None,
+                    account: Some(AccountIdentifier {
+                        address: "95Dq3sXa3omVjiyxBSD6UMrzPYdmyu6CFCw5wS4rhqgV".to_string(),
+                        sub_account: None,
+                    }),
+                    amount: Some(Amount {
+                        value: "-10".to_string(),
+                        currency: Currency {
+                            symbol: "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
+                            decimals: 2,
+                            metadata: None,
+                        },
+                    }),
+                    type_: OperationType::SplToken__TransferChecked,
+                    metadata: Some(json!({
+                        "authority": source(),
+                    })),
                 },
-                related_operations: Some(vec![OperationIdentifier {
-                    index: 10,
-                    network_index: None,
-                }]),
-                status: None,
-                account: Some(AccountIdentifier {
-                    address: "GyUjMMeZH3PVXp4tk5sR8LgnVaLTvCPipQ3dQY74k75L".to_string(),
-                    sub_account: None,
-                }),
-                amount: Some(Amount {
-                    value: "10".to_string(),
-                    currency: Currency {
-                        symbol: "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
-                        decimals: 2,
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 11,
+                        network_index: None,
                     },
-                }),
-                type_: OperationType::SplToken__TransferChecked,
-                metadata: Some(json!({
-                    "authority": source(),
-                })),
-            },
-        ]);
+                    related_operations: None,
+                    status: None,
+                    account: Some(AccountIdentifier {
+                        address: "GyUjMMeZH3PVXp4tk5sR8LgnVaLTvCPipQ3dQY74k75L".to_string(),
+                        sub_account: None,
+                    }),
+                    amount: Some(Amount {
+                        value: "10".to_string(),
+                        currency: Currency {
+                            symbol: "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
+                            decimals: 2,
+                            metadata: None,
+                        },
+                    }),
+                    type_: OperationType::SplToken__TransferChecked,
+                    metadata: Some(json!({
+                        "authority": source(),
+                    })),
+                },
+            ],
+            vec![main_account_keypair()],
+        );
     }
 
     #[test]
+    #[ignore]
     fn test_token_transfer() {
         let rpc = create_rpc_client("https://devnet.solana.com".to_string());
-        let parsed = constructions_pipe(vec![Operation {
-            operation_identifier: OperationIdentifier {
-                index: 0,
-                network_index: None,
-            },
-            related_operations: None,
-            status: None,
-            account: None,
-            amount: None,
-            type_: OperationType::SplToken__Transfer,
-            metadata: Some(json!({
-                "authority": source(),
-                "source": "95Dq3sXa3omVjiyxBSD6UMrzPYdmyu6CFCw5wS4rhqgV",
-                "destination": "GyUjMMeZH3PVXp4tk5sR8LgnVaLTvCPipQ3dQY74k75L",
-                "amount": 10,
-                "decimals": 2,
-                "mint": "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr",
-            })),
-        }]);
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 0,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::SplToken__Transfer,
+                metadata: Some(json!({
+                    "authority": source(),
+                    "source": "95Dq3sXa3omVjiyxBSD6UMrzPYdmyu6CFCw5wS4rhqgV",
+                    "destination": "GyUjMMeZH3PVXp4tk5sR8LgnVaLTvCPipQ3dQY74k75L",
+                    "amount": "10",
+                    "decimals": 2,
+                    "mint": "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr",
+                })),
+            }],
+            vec![main_account_keypair()],
+        );
+    }
+
+    fn new_throwaway_signer() -> (Keypair, solana_sdk::pubkey::Pubkey) {
+        let keypair = solana_sdk::signature::Keypair::new();
+        let pubkey = solana_sdk::signature::Signer::pubkey(&keypair);
+        (
+            ed25519_dalek::Keypair::from_bytes(&keypair.to_bytes()).unwrap(),
+            pubkey,
+        )
     }
     #[test]
+    #[ignore]
+    fn test_token_create() {
+        let (keypair, pubkey) = new_throwaway_signer();
+        let token = pubkey.to_string();
+        let rpc = create_rpc_client("https://devnet.solana.com".to_string());
+        let parsed = constructions_pipe(
+            vec![
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 0,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::System__CreateAccount,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "mint": token,
+                        "amount": "1000",
+                        "space": 82
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 0,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::SplToken__InitializeMint,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "mint": token,
+                        "decimals": 2,
+                    })),
+                },
+            ],
+            vec![main_account_keypair(), keypair],
+        );
+    }
+    #[test]
+    #[ignore]
     fn test_construction_create_assoc_acc() {
         //wont create anymore coz already created change mint address
 
-        let parsed = constructions_pipe(vec![Operation {
-            operation_identifier: OperationIdentifier {
-                index: 0,
-                network_index: None,
-            },
-            related_operations: None,
-            status: None,
-            account: None,
-            amount: None,
-            type_: OperationType::SplToken__CreateAssocAccount,
-            metadata: Some(json!({
-                "source": source(),
-                "mint": "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
-            })),
-        }]);
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 0,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::SplToken__CreateAssocAccount,
+                metadata: Some(json!({
+                    "source": source(),
+                    "mint": "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
+                })),
+            }],
+            vec![],
+        );
     }
     fn source() -> String {
         "HJGPMwVuqrbm7BDMeA3shLkqdHUru337fgytM7HzqTnH".to_string()
@@ -423,7 +512,10 @@ mod tests {
     fn dest() -> String {
         "CgVKbBwogjaqtGtPLkMBSkhwtkTMLVdSdHM5cWzyxT5n".to_string()
     }
-    fn constructions_pipe(operations: Vec<Operation>) -> ConstructionParseResponse {
+    fn constructions_pipe(
+        operations: Vec<Operation>,
+        mut keypairs: Vec<Keypair>,
+    ) -> ConstructionParseResponse {
         let rpc = create_rpc_client("https://devnet.solana.com".to_string());
 
         let options = Options {
@@ -453,6 +545,7 @@ mod tests {
             &options,
         )
         .unwrap();
+        println!("Payloads {:?}", payloads);
         let parsed = construction_parse(
             ConstructionParseRequest {
                 network_identifier: network_identifier.clone(),
@@ -462,26 +555,30 @@ mod tests {
             &options,
         )
         .unwrap();
-
+        println!("Parsed {:?}", parsed);
         let signatures = payloads
             .clone()
             .payloads
             .iter()
-            .map(|x| crate::types::Signature {
-                signing_payload: SigningPayload {
-                    hex_bytes: x.hex_bytes.clone(),
-                    account_identifier: None,
-                    signature_type: Some(SignatureType::Ed25519),
-                },
-                public_key: crate::types::PublicKey {
-                    hex_bytes: "f22742d48ce6eeb0c062237b04a5b7f57bfeb8803e9287cd8a112320860e307a"
-                        .to_string(),
-                    curve_type: CurveType::Edwards25519,
-                },
-                signature_type: SignatureType::Ed25519,
-                hex_bytes: sign_msg(&x.hex_bytes),
+            .enumerate()
+            .map(|(i, y)| {
+                let x = y.clone().unwrap();
+                crate::types::Signature {
+                    signing_payload: SigningPayload {
+                        hex_bytes: x.hex_bytes.clone(),
+                        account_identifier: None,
+                        signature_type: Some(SignatureType::Ed25519),
+                    },
+                    public_key: crate::types::PublicKey {
+                        hex_bytes: hex::encode(&keypairs[i].public.as_bytes()),
+                        curve_type: CurveType::Edwards25519,
+                    },
+                    signature_type: SignatureType::Ed25519,
+                    hex_bytes: sign_msg(&keypairs[i], &x.hex_bytes),
+                }
             })
             .collect::<Vec<crate::types::Signature>>();
+        println!("Signatures {:?}", signatures);
         let combined = construction_combine(
             ConstructionCombineRequest {
                 network_identifier: network_identifier.clone(),
@@ -506,20 +603,24 @@ mod tests {
         );
         return parsed.into_inner();
     }
-    fn sign_msg(s: &str) -> String {
+    fn main_account_keypair() -> Keypair {
         let privkey =
             hex::decode("cb1a134c296fbf309d78fe9378c18bc129e5045fbe92d2ad8577ccc84689d4ef")
                 .unwrap();
         let public =
             hex::decode("f22742d48ce6eeb0c062237b04a5b7f57bfeb8803e9287cd8a112320860e307a")
                 .unwrap();
-        let msg = hex::decode(s).unwrap();
+
         let secret = ed25519_dalek::SecretKey::from_bytes(&privkey).unwrap();
         let pubkey = ed25519_dalek::PublicKey::from_bytes(&public).unwrap();
         let keypair = ed25519_dalek::Keypair {
             secret: secret,
             public: pubkey,
         };
+        keypair
+    }
+    fn sign_msg(keypair: &Keypair, s: &str) -> String {
+        let msg = hex::decode(s).unwrap();
         let signature = keypair.sign(&msg);
         hex::encode(signature.to_bytes())
     }

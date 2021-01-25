@@ -1,9 +1,149 @@
 use serde::{Deserialize, Serialize};
+use solana_client::rpc_request::RpcRequest;
 use solana_sdk::{fee_calculator::FeeCalculator, hash::Hash};
 use solana_transaction_status::UiTransactionStatusMeta;
 
 // Objects
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CallRequest {
+    pub network_identifier: NetworkIdentifier,
+    pub method: RpcRequestInternal,
+    pub parameters: serde_json::Value,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CallResponse {
+    pub result: serde_json::Value,
+    pub idempotent: bool,
+}
+
+//TODO: orphan rule cant impl deserialize for RpcRequest
+#[derive(Clone, Debug, Deserialize, Serialize, strum::EnumIter, strum_macros::EnumString)]
+pub enum RpcRequestInternal {
+    DeregisterNode,
+    ValidatorExit,
+    GetAccountInfo,
+    GetBalance,
+    GetBlockTime,
+    GetClusterNodes,
+    GetConfirmedBlock,
+    GetConfirmedBlocks,
+    GetConfirmedBlocksWithLimit,
+    GetConfirmedSignaturesForAddress,
+    GetConfirmedSignaturesForAddress2,
+    GetConfirmedTransaction,
+    GetEpochInfo,
+    GetEpochSchedule,
+    GetFeeCalculatorForBlockhash,
+    GetFeeRateGovernor,
+    GetFees,
+    GetFirstAvailableBlock,
+    GetGenesisHash,
+    GetHealth,
+    GetIdentity,
+    GetInflationGovernor,
+    GetInflationRate,
+    GetLargestAccounts,
+    GetLeaderSchedule,
+    GetMinimumBalanceForRentExemption,
+    GetMultipleAccounts,
+    GetProgramAccounts,
+    GetRecentBlockhash,
+    GetSnapshotSlot,
+    GetSignatureStatuses,
+    GetSlot,
+    GetSlotLeader,
+    GetStorageTurn,
+    GetStorageTurnRate,
+    GetSlotsPerSegment,
+    GetStoragePubkeysForSlot,
+    GetSupply,
+    GetTokenAccountBalance,
+    GetTokenAccountsByDelegate,
+    GetTokenAccountsByOwner,
+    GetTokenSupply,
+    GetTotalSupply,
+    GetTransactionCount,
+    GetVersion,
+    GetVoteAccounts,
+    MinimumLedgerSlot,
+    RegisterNode,
+    RequestAirdrop,
+    SendTransaction,
+    SimulateTransaction,
+    SignVote,
+}
+
+impl From<RpcRequestInternal> for RpcRequest {
+    fn from(r: RpcRequestInternal) -> Self {
+        match r {
+            RpcRequestInternal::DeregisterNode => RpcRequest::DeregisterNode,
+            RpcRequestInternal::ValidatorExit => RpcRequest::ValidatorExit,
+            RpcRequestInternal::GetAccountInfo => RpcRequest::GetAccountInfo,
+            RpcRequestInternal::GetBalance => RpcRequest::GetBalance,
+            RpcRequestInternal::GetBlockTime => RpcRequest::GetBlockTime,
+            RpcRequestInternal::GetClusterNodes => RpcRequest::GetClusterNodes,
+            RpcRequestInternal::GetConfirmedBlock => RpcRequest::GetConfirmedBlock,
+            RpcRequestInternal::GetConfirmedBlocks => RpcRequest::GetConfirmedBlocks,
+            RpcRequestInternal::GetConfirmedBlocksWithLimit => {
+                RpcRequest::GetConfirmedBlocksWithLimit
+            }
+            RpcRequestInternal::GetConfirmedSignaturesForAddress => {
+                RpcRequest::GetConfirmedSignaturesForAddress
+            }
+            RpcRequestInternal::GetConfirmedSignaturesForAddress2 => {
+                RpcRequest::GetConfirmedSignaturesForAddress2
+            }
+            RpcRequestInternal::GetConfirmedTransaction => RpcRequest::GetConfirmedTransaction,
+            RpcRequestInternal::GetEpochInfo => RpcRequest::GetEpochInfo,
+            RpcRequestInternal::GetEpochSchedule => RpcRequest::GetEpochSchedule,
+            RpcRequestInternal::GetFeeCalculatorForBlockhash => {
+                RpcRequest::GetFeeCalculatorForBlockhash
+            }
+            RpcRequestInternal::GetFeeRateGovernor => RpcRequest::GetFeeRateGovernor,
+            RpcRequestInternal::GetFees => RpcRequest::GetFees,
+            RpcRequestInternal::GetFirstAvailableBlock => RpcRequest::GetFirstAvailableBlock,
+            RpcRequestInternal::GetGenesisHash => RpcRequest::GetGenesisHash,
+            RpcRequestInternal::GetHealth => RpcRequest::GetHealth,
+            RpcRequestInternal::GetIdentity => RpcRequest::GetIdentity,
+            RpcRequestInternal::GetInflationGovernor => RpcRequest::GetInflationGovernor,
+            RpcRequestInternal::GetInflationRate => RpcRequest::GetInflationRate,
+            RpcRequestInternal::GetLargestAccounts => RpcRequest::GetLargestAccounts,
+            RpcRequestInternal::GetLeaderSchedule => RpcRequest::GetLeaderSchedule,
+            RpcRequestInternal::GetMinimumBalanceForRentExemption => {
+                RpcRequest::GetMinimumBalanceForRentExemption
+            }
+            RpcRequestInternal::GetMultipleAccounts => RpcRequest::GetMultipleAccounts,
+            RpcRequestInternal::GetProgramAccounts => RpcRequest::GetProgramAccounts,
+            RpcRequestInternal::GetRecentBlockhash => RpcRequest::GetRecentBlockhash,
+            RpcRequestInternal::GetSnapshotSlot => RpcRequest::GetSnapshotSlot,
+            RpcRequestInternal::GetSignatureStatuses => RpcRequest::GetSignatureStatuses,
+            RpcRequestInternal::GetSlot => RpcRequest::GetSlot,
+            RpcRequestInternal::GetSlotLeader => RpcRequest::GetSlotLeader,
+            RpcRequestInternal::GetStorageTurn => RpcRequest::GetStorageTurn,
+            RpcRequestInternal::GetStorageTurnRate => RpcRequest::GetStorageTurnRate,
+            RpcRequestInternal::GetSlotsPerSegment => RpcRequest::GetSlotsPerSegment,
+            RpcRequestInternal::GetStoragePubkeysForSlot => RpcRequest::GetStoragePubkeysForSlot,
+            RpcRequestInternal::GetSupply => RpcRequest::GetSupply,
+            RpcRequestInternal::GetTokenAccountBalance => RpcRequest::GetTokenAccountBalance,
+            RpcRequestInternal::GetTokenAccountsByDelegate => {
+                RpcRequest::GetTokenAccountsByDelegate
+            }
+            RpcRequestInternal::GetTokenAccountsByOwner => RpcRequest::GetTokenAccountsByOwner,
+            RpcRequestInternal::GetTokenSupply => RpcRequest::GetTokenSupply,
+            RpcRequestInternal::GetTotalSupply => RpcRequest::GetTotalSupply,
+            RpcRequestInternal::GetTransactionCount => RpcRequest::GetTransactionCount,
+            RpcRequestInternal::GetVersion => RpcRequest::GetVersion,
+            RpcRequestInternal::GetVoteAccounts => RpcRequest::GetVoteAccounts,
+            RpcRequestInternal::MinimumLedgerSlot => RpcRequest::MinimumLedgerSlot,
+            RpcRequestInternal::RegisterNode => RpcRequest::RegisterNode,
+            RpcRequestInternal::RequestAirdrop => RpcRequest::RequestAirdrop,
+            RpcRequestInternal::SendTransaction => RpcRequest::SendTransaction,
+            RpcRequestInternal::SimulateTransaction => RpcRequest::SimulateTransaction,
+            RpcRequestInternal::SignVote => RpcRequest::SignVote,
+        }
+    }
+}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Allow {
     pub operation_statuses: Vec<OperationStatus>,
@@ -12,7 +152,7 @@ pub struct Allow {
     pub historical_balance_lookup: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp_start_index: Option<u64>,
-    pub call_methods: Vec<String>,
+    pub call_methods: Vec<RpcRequestInternal>,
     pub balance_exemptions: Vec<BalanceExemption>,
 }
 
@@ -54,6 +194,8 @@ pub struct Block {
 pub struct Currency {
     pub symbol: String,
     pub decimals: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -73,7 +215,7 @@ pub struct Operation {
     #[serde(rename = "type")]
     pub type_: OperationType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<OperationStatusType>,
+    pub status: Option<OperationStatusType>, //TODO: sucess/faliure for now
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account: Option<AccountIdentifier>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,10 +229,14 @@ pub struct Operation {
 )]
 pub enum OperationType {
     System__Transfer,
+    System__CreateAccount,
 
     SplToken__Transfer,
     SplToken__TransferChecked,
     SplToken__CreateAssocAccount,
+    SplToken__Burn,
+    SplToken__Mint,
+    SplToken__InitializeMint,
     Unknown,
 }
 #[derive(
@@ -294,7 +440,7 @@ pub struct ConstructionPayloadsRequest {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConstructionPayloadsResponse {
     pub unsigned_transaction: String,
-    pub payloads: Vec<SigningPayload>,
+    pub payloads: Vec<Option<SigningPayload>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

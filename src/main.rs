@@ -5,6 +5,7 @@ extern crate rocket;
 mod account;
 mod api_routes;
 mod block;
+mod call;
 mod construction;
 mod consts;
 mod error;
@@ -17,6 +18,7 @@ use std::{env, time::Duration};
 
 use api_routes::construction::*;
 use api_routes::data::*;
+use call::RpcSender2;
 use error::ApiError;
 //use routes::construction::*;
 use rocket::{config::Environment, Config};
@@ -26,6 +28,9 @@ use types::NetworkIdentifier;
 pub struct Options {
     rpc: RpcClient,
     network: String,
+}
+pub struct Options2 {
+    rpc2: RpcSender2,
 }
 
 #[cfg(debug_assertions)]
@@ -44,8 +49,9 @@ fn main() {
     let host = env::var("HOST").unwrap_or("localhost".to_string());
     let port = env::var("PORT").unwrap_or("8080".to_string());
     let mode = env::var("MODE").unwrap_or("online".to_string());
-    let rpc = create_rpc_client(rpc_url);
-    let options = Options { rpc: rpc, network };
+    let rpc = create_rpc_client(rpc_url.clone());
+    let options = Options { rpc, network };
+
     let config = Config::build(get_rocket_env())
         .address(host)
         .port(port.parse::<u16>().unwrap())
@@ -70,7 +76,8 @@ fn main() {
             account_balance,
             get_block, // /block
             block_transaction,
-            //TODO: make offline/online paths
+            call,
+            //TODO: offline paths are not disabled in online mode
             construction_combine,
             construction_derive,
             construction_hash,
@@ -81,9 +88,14 @@ fn main() {
             construction_submit,
         ]
     };
+
+    let rpc2 = RpcSender2::new(rpc_url);
+    let options2 = Options2 { rpc2 };
+
     rocket::custom(config)
         .mount("/", r)
         .manage(options)
+        .manage(options2)
         //.register(catchers![internal_error])
         .launch();
 }

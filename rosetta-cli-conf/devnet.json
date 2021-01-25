@@ -3,6 +3,7 @@
         "blockchain": "solana",
         "network": "devnet"
     },
+    "online_url": "http://127.0.0.1:8080",
     "data_directory": "cli-data",
     "http_timeout": 30000,
     "max_retries": 15,

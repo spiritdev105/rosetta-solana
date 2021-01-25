@@ -1,26 +1,19 @@
 use std::str::FromStr;
 
 use crate::{
-    consts,
     error::ApiError,
     is_bad_network,
     types::Block,
     types::BlockRequest,
     types::BlockTransactionResponse,
-    types::{
-        BlockIdentifier, BlockResponse, BlockTransactionRequest, Operation, OperationIdentifier,
-        Transaction, TransactionIdentifier,
-    },
+    types::{BlockIdentifier, BlockResponse, BlockTransactionRequest, Transaction},
     Options,
 };
-use rocket::State;
+
 use rocket_contrib::json::Json;
-use serde::Deserialize;
+
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{
-    EncodedTransaction, EncodedTransactionWithStatusMeta, UiInstruction, UiMessage,
-    UiParsedInstruction, UiTransactionEncoding,
-};
+use solana_transaction_status::UiTransactionEncoding;
 
 pub fn block(
     block_request: BlockRequest,
@@ -31,7 +24,7 @@ pub fn block(
     let block_index = block_request
         .block_identifier
         .index
-        .ok_or_else(|| ApiError::BadBlockRequest)?;
+        .ok_or_else(|| ApiError::BadRequest)?;
     let block_result = options.rpc.get_confirmed_block_with_encoding(
         block_index,
         solana_transaction_status::UiTransactionEncoding::JsonParsed,

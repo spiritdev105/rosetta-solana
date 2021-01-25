@@ -1,5 +1,5 @@
 [package]
-name = "rosetta-sol"
+name = "rosetta-solana"
 version = "0.1.0"
 authors = ["imerkle <imerkle@tutanota.com>"]
 edition = "2018"
@@ -18,14 +18,17 @@ bs58="*"
 base64="*"
 strum = { version = "0.18", features = ["derive"] }
 strum_macros="*"
-ed25519-dalek = { version = "=1.0.0-pre.4" }
 convert_case="*"
 
 spl-token = { version="3.0.1", features = ["no-entrypoint"] }
 #spl-token-v3 = { version="3.0.1", features = ["no-entrypoint"] }
-spl-associated-token-account = { git="http://github.com/imerkle/solana-program-library", features = ["no-entrypoint"] }
+spl-associated-token-account = { version="1.0.2", features = ["no-entrypoint"] }
 solana-sdk = { version="1.4.17" }
 solana-client = { version="1.4.17" }
 solana-cli-config = { version="1.4.17" }
 solana-metrics = {version="1.4.17" }
 solana-transaction-status = { version="1.4.17"}
+solana-account-decoder = { version="1.4.17"}
+
+[dev-dependencies]
+ed25519-dalek = { version = "=1.0.0-pre.4" }

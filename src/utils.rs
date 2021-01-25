@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     consts,
-    operations::get_operations_from_encoded_tx,
+    operations::utils::get_operations_from_encoded_tx,
     types::{OperationStatusType, OperationType, Transaction, TransactionIdentifier},
 };
 use convert_case::{Case, Casing};

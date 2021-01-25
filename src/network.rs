@@ -1,9 +1,9 @@
 use crate::{
     consts,
-    consts::get_json_rpc_methods,
     error::ApiError,
     is_bad_network,
     types::Allow,
+    types::RpcRequestInternal,
     types::{
         BlockIdentifier, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse,
         NetworkRequest, NetworkStatusResponse, OperationStatus, OperationStatusType, OperationType,
@@ -56,7 +56,7 @@ pub fn network_options(
         errors,
         historical_balance_lookup: false,
         timestamp_start_index: Some(0), // TODO: find this
-        call_methods: get_json_rpc_methods(),
+        call_methods: RpcRequestInternal::iter().collect(),
         balance_exemptions: vec![],
     };
 
@@ -98,7 +98,7 @@ pub fn get_current_block(options: &Options) -> Result<(u64, i64, BlockIdentifier
     let slot_time = options.rpc.get_block_time(slot)?;
     let current_block_identifier = BlockIdentifier {
         index: slot,
-        hash: slot.to_string(),
+        hash: slot.to_string(), //TODO: should be hash not slot
     };
     Ok((slot, slot_time, current_block_identifier))
 }

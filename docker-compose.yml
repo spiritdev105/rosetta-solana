@@ -1,0 +1,10 @@
+version: "3"
+services:
+  rosetta-solana:
+    image: rosetta-solana
+    container_name: rosetta-solana
+    environment:
+      - HOST=0.0.0.0
+      - RUST_BACKTRACE=1
+    ports:
+      - "8080:8080"

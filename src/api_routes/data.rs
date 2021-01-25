@@ -1,16 +1,19 @@
 use crate::{
     account, block,
+    call::call_direct,
     error::ApiError,
     network,
+    types::CallRequest,
     types::{
         AccountBalanceRequest, AccountBalanceResponse, BlockRequest, BlockResponse,
-        BlockTransactionRequest, BlockTransactionResponse, NetworkListResponse,
+        BlockTransactionRequest, BlockTransactionResponse, CallResponse, NetworkListResponse,
         NetworkOptionsResponse, NetworkRequest, NetworkStatusResponse,
     },
-    Options,
+    Options, Options2,
 };
 use rocket::State;
 use rocket_contrib::json::Json;
+use solana_client::{http_sender::HttpSender, rpc_request::RpcRequest, rpc_sender::RpcSender};
 
 #[post("/network/list")]
 pub fn network_list(options: State<Options>) -> Result<Json<NetworkListResponse>, ApiError> {
@@ -52,4 +55,13 @@ pub fn block_transaction(
     options: State<Options>,
 ) -> Result<Json<BlockTransactionResponse>, ApiError> {
     block::block_transaction(block_transaction_request.into_inner(), options.inner())
+}
+
+#[post("/call", data = "<call_request>")]
+pub fn call(
+    call_request: Json<CallRequest>,
+    options: State<Options>,
+    options2: State<Options2>,
+) -> Result<Json<CallResponse>, ApiError> {
+    call_direct(call_request.into_inner(), options.inner(), options2.inner())
 }
