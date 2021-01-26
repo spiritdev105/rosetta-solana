@@ -29,6 +29,8 @@ solana-cli-config = { version="1.4.17" }
 solana-metrics = {version="1.4.17" }
 solana-transaction-status = { version="1.4.17"}
 solana-account-decoder = { version="1.4.17"}
+solana-stake-program = { version="1.4.17"}
+solana-vote-program = { version="1.4.17"}
 
 [dev-dependencies]
 ed25519-dalek = { version = "=1.0.0-pre.4" }

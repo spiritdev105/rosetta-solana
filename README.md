@@ -57,7 +57,7 @@ and run one of the following commands:
 
 ## Details
 
-###Endpoints Implemented
+### Endpoints Implemented
 
 ```
     /network/list (network_list)
@@ -90,16 +90,44 @@ MODE = "online" //online/offline
 See `types::OperationType` to see full list of current operations supported . This list might not be up to date.
 
 ```
+  System__CreateAccount,
+    System__Assign,
     System__Transfer,
-    System__CreateAccount,
-
+    System__CreateNonceAccount,
+    System__AdvanceNonceAccount,
+    System__WithdrawNonceAccount,
+    System__AuthorizeNonceAccount,
+    System__Allocate,
+    
+    SplToken__InitializeMint,
+    SplToken__InitializeAccount,
+    SplToken__CreateToken,
+    SplToken__CreateAccount,
     SplToken__Transfer,
+    SplToken__Approve,
+    SplToken__Revoke,
+    SplToken__MintTo,
+    SplToken__Burn,
+    SplToken__CloseAccount,
+    SplToken__FreezeAccount,
+    SplToken__ThawAccount,
     SplToken__TransferChecked,
     SplToken__CreateAssocAccount,
-    SplToken__Burn,
-    SplToken__Mint,
-    SplToken__InitializeMint,
-    Unknown,
+
+    Stake__CreateAccount,
+    Stake__Delegate,
+    Stake__Split,
+    Stake__Merge,
+    Stake__Authorize,
+    Stake__Withdraw,
+    Stake__Deactivate,
+    Stake__SetLockup,
+
+    Vote__CreateAccount,
+    Vote__Authorize,
+    Vote__Withdraw,
+    Vote__UpdateValidatorIdentity,
+    Vote__UpdateCommission,
 ```
 
 #### Simpler Operations

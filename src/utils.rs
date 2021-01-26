@@ -29,6 +29,13 @@ impl From<&EncodedTransactionWithStatusMeta> for Transaction {
 pub fn to_pub(s: &str) -> Pubkey {
     Pubkey::from_str(&s).unwrap()
 }
+pub fn to_pub_optional(s: Option<String>) -> Option<Pubkey> {
+    if let Some(x) = &s {
+        Some(Pubkey::from_str(x).unwrap())
+    } else {
+        None
+    }
+}
 
 pub fn get_operation_type_with_program(program: &str, s: &str) -> OperationType {
     let to_pascal = program.to_case(Case::Pascal);

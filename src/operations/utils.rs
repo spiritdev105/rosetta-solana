@@ -12,108 +12,17 @@ use solana_transaction_status::{
     UiParsedInstruction,
 };
 
-use super::TransferOpMeta;
+use super::OpMeta;
 
-//TODO: further combine macros if possible
-macro_rules! push_op {
-    ($op:expr, $metadata:expr, $combined_operations:expr) => {
-        let mut new_op = $op.clone();
-        new_op.metadata = Some(serde_json::to_value($metadata).unwrap());
-        new_op.related_operations = None;
-        new_op.account = None;
-        new_op.amount = None;
-
-        $combined_operations.push(new_op);
-    };
-}
-
-macro_rules! get_meta {
-    ($op:expr, $metadata:expr, $metastruct:ident) => {
-        if let Some(x) = &$op.metadata {
-            $metadata = serde_json::from_value::<$metastruct>(x.clone()).unwrap();
+#[macro_export]
+macro_rules! set_meta {
+    ($metadata:expr, $metastruct:ident) => {
+        if let Some(x) = $metadata {
+            serde_json::from_value::<$metastruct>(x).unwrap()
         } else {
-            $metadata = $metastruct::default()
-        };
-    };
-}
-
-//simple matcher
-pub fn combine_related_operations(operations: &Vec<Operation>) -> Result<Vec<Operation>, ApiError> {
-    let mut combined_operations: Vec<Operation> = vec![];
-    let mut checked_related_op_indexes: Vec<u64> = vec![];
-    operations.iter().for_each(|op| {
-        if !checked_related_op_indexes.contains(&op.operation_identifier.index) {
-            let mut metadata: TransferOpMeta;
-            get_meta!(op, metadata, TransferOpMeta);
-
-            match op.type_ {
-                OperationType::System__Transfer
-                | OperationType::SplToken__Transfer
-                | OperationType::SplToken__TransferChecked => {
-                    let mut related_op: Option<&Operation> = None;
-                    if op.account.is_some() && op.amount.is_some() {
-                        let op_amount = op.amount.clone().unwrap();
-                        let clean_amt = op_amount.value.replace("-", "");
-                        related_op = operations.iter().find(|x| {
-                            if let Some(xamt) = &x.amount {
-                                if xamt.value.replace("-", "") == clean_amt
-                                    && xamt.currency.symbol == op_amount.currency.symbol
-                                    && xamt.currency.decimals == op_amount.currency.decimals
-                                    && x.operation_identifier.index != op.operation_identifier.index
-                                    && !checked_related_op_indexes
-                                        .contains(&x.operation_identifier.index)
-                                {
-                                    true
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            }
-                        });
-                    }
-
-                    if let Some(r) = &related_op {
-                        let x = &r.operation_identifier;
-                        let index = x.index;
-                        let main_amount = op.amount();
-                        let main_address = op.address();
-
-                        let amount = r.amount();
-                        let address = r.address();
-
-                        if amount < 0 {
-                            //negative = this is sender
-                            metadata.source = Some(address);
-                            metadata.destination = Some(main_address.clone());
-                            metadata.amount = Some(main_amount.to_string());
-                            metadata.lamports = Some(main_amount as u64);
-                        } else {
-                            metadata.destination = Some(address);
-                            metadata.source = Some(main_address.clone());
-                            metadata.amount = Some(amount.to_string());
-                            metadata.lamports = Some(amount as u64);
-                        }
-                        checked_related_op_indexes.push(index);
-                    }
-                    if let Some(x) = &op.amount {
-                        let currency = &x.currency;
-                        metadata.decimals = Some(currency.decimals);
-                        metadata.mint = Some(currency.symbol.clone()); //TODO: Symbol = mint address
-                    };
-                    push_op!(op, metadata, combined_operations);
-                }
-                _ => {
-                    if let Some(x) = &op.account {
-                        metadata.source = Some(x.address.clone());
-                    };
-                    push_op!(op, metadata, combined_operations);
-                }
-            }
+            $metastruct::default()
         }
-    });
-
-    Ok(combined_operations)
+    };
 }
 pub fn get_operations_from_encoded_tx(
     transaction: &EncodedTransaction,
@@ -149,7 +58,7 @@ pub fn get_operations_from_encoded_tx(
                                 OperationType::System__Transfer
                                 | OperationType::SplToken__Transfer
                                 | OperationType::SplToken__TransferChecked => {
-                                    let parsed_meta = TransferOpMeta::from(&Some(metadata.clone()));
+                                    let parsed_meta = OpMeta::from(&Some(metadata.clone()));
                                     let parsed_meta_cloned = parsed_meta.clone();
                                     let currency = Currency {
                                         symbol: parsed_meta

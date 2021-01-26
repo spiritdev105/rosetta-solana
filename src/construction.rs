@@ -1,6 +1,4 @@
-use crate::{
-    error::ApiError, is_bad_network, operations::utils::combine_related_operations, Options,
-};
+use crate::{error::ApiError, is_bad_network, operations::matcher::Matcher, Options};
 use crate::{
     operations::utils::get_operations_from_encoded_tx,
     types::{
@@ -238,10 +236,8 @@ pub fn construction_submit(
     Ok(Json(response))
 }
 fn tx_from_operations(operations: &Vec<Operation>) -> Result<Transaction, ApiError> {
-    let instructions = combine_related_operations(operations)?
-        .iter()
-        .map(|x| x.to_instruction().unwrap())
-        .collect::<Vec<Instruction>>();
+    let mut matcher = Matcher::new(operations);
+    let instructions = matcher.to_instructions()?;
     let mut fee_payer = None;
     instructions.iter().for_each(|x| {
         if let Some(y) = x.accounts.iter().find(|a| a.is_signer) {
@@ -278,7 +274,7 @@ fn get_tx_from_str(s: &str) -> Result<Transaction, ApiError> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{str::FromStr, thread, time::Duration};
 
     use ed25519_dalek::*;
     use serde_json::json;
@@ -288,6 +284,58 @@ mod tests {
     //live debug tests on devnet
 
     use super::*;
+
+    fn source() -> String {
+        "HJGPMwVuqrbm7BDMeA3shLkqdHUru337fgytM7HzqTnH".to_string()
+    }
+    fn dest() -> String {
+        "CgVKbBwogjaqtGtPLkMBSkhwtkTMLVdSdHM5cWzyxT5n".to_string()
+    }
+
+    fn main_account_keypair() -> Keypair {
+        let privkey =
+            hex::decode("cb1a134c296fbf309d78fe9378c18bc129e5045fbe92d2ad8577ccc84689d4ef")
+                .unwrap();
+        let public =
+            hex::decode("f22742d48ce6eeb0c062237b04a5b7f57bfeb8803e9287cd8a112320860e307a")
+                .unwrap();
+
+        let secret = ed25519_dalek::SecretKey::from_bytes(&privkey).unwrap();
+        let pubkey = ed25519_dalek::PublicKey::from_bytes(&public).unwrap();
+        let keypair = ed25519_dalek::Keypair {
+            secret: secret,
+            public: pubkey,
+        };
+        keypair
+    }
+
+    #[test]
+    #[ignore]
+    fn test_token_bulk() {
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 6,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::SplToken__CreateAccount,
+                metadata: Some(json!({
+                    "destination": "7pLKwSRmAR3pN3PkBnssm142Pg4Daj86WkWrnGC3Uh7h".to_string(),
+                    "source": source(),
+                    "lockup": {
+                        "epoch": 0,
+                        "unix_timestamp": 100,
+                        "custodian": source(),
+                    }
+                })),
+            }],
+            vec![&main_account_keypair()],
+        );
+    }
     #[test]
     #[ignore]
     fn test_construction_transfer() {
@@ -326,20 +374,7 @@ mod tests {
                     })),
                 },
             ],
-            vec![main_account_keypair()],
-        );
-
-        assert_eq!(
-            parsed.operations[0].to_instruction().unwrap().accounts[0]
-                .pubkey
-                .to_string(),
-            source()
-        );
-        assert_eq!(
-            parsed.operations[0].to_instruction().unwrap().accounts[1]
-                .pubkey
-                .to_string(),
-            dest()
+            vec![&main_account_keypair()],
         );
     }
     #[test]
@@ -360,14 +395,14 @@ mod tests {
                         sub_account: None,
                     }),
                     amount: Some(Amount {
-                        value: "-10".to_string(),
+                        value: "-0.01".to_string(),
                         currency: Currency {
                             symbol: "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
                             decimals: 2,
                             metadata: None,
                         },
                     }),
-                    type_: OperationType::SplToken__TransferChecked,
+                    type_: OperationType::SplToken__Transfer,
                     metadata: Some(json!({
                         "authority": source(),
                     })),
@@ -384,23 +419,253 @@ mod tests {
                         sub_account: None,
                     }),
                     amount: Some(Amount {
-                        value: "10".to_string(),
+                        value: "0.01".to_string(),
                         currency: Currency {
                             symbol: "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr".to_string(),
                             decimals: 2,
                             metadata: None,
                         },
                     }),
-                    type_: OperationType::SplToken__TransferChecked,
+                    type_: OperationType::SplToken__Transfer,
                     metadata: Some(json!({
                         "authority": source(),
                     })),
                 },
             ],
-            vec![main_account_keypair()],
+            vec![&main_account_keypair()],
         );
     }
 
+    #[test]
+    #[ignore]
+    fn test_nonce_accounts() {
+        let (k, p) = new_throwaway_signer();
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 0,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::System__CreateNonceAccount,
+                metadata: Some(json!({
+                    "source": source(),
+                    "authority": source(),
+                    "destination": p.to_string()
+                })),
+            }],
+            vec![&main_account_keypair(), &k],
+        );
+        thread::sleep(Duration::from_secs(20));
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 1,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::System__AdvanceNonceAccount,
+                metadata: Some(json!({
+                    "source": source(),
+                    "destination": p.to_string()
+                })),
+            }],
+            vec![&main_account_keypair()],
+        );
+    }
+    #[test]
+    #[ignore]
+    fn test_stake_accounts() {
+        let (k, p) = new_throwaway_signer();
+        let (k2, p2) = new_throwaway_signer();
+
+        let parsed = constructions_pipe(
+            vec![
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 1,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__CreateAccount,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "lamports": 1000000000,
+                        "lockup": {
+                            "epoch": 0,
+                            "unix_timestamp": 0,
+                            "custodian": source(),
+                        },
+                        "destination": p.to_string()
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 2,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__Delegate,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "destination": p.to_string(),
+                        "vote_pubkey": "5MMCR4NbTZqjthjLGywmeT66iwE9J9f7kjtxzJjwfUx2".to_string()
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 3,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__Split,
+                    metadata: Some(json!({
+                        "source": p.to_string(),
+                        "authority": source(),
+                        "lamports": 500000000,
+                        "destination": p2.to_string()
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 4,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__Merge,
+                    metadata: Some(json!({
+                        "source": p2.to_string(),
+                        "authority": source(),
+                        "destination": p.to_string()
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 5,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__SetLockup,
+                    metadata: Some(json!({
+                        "stake_pubkey": p.to_string(),
+                        "source": source(),
+                        "lockup": {
+                            "epoch": 420,
+                        }
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 5,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__Authorize,
+                    metadata: Some(json!({
+                        "staker": p2.to_string(),
+                        "withdrawer": p2.to_string(),
+                        "source": source(),
+                        "stake_pubkey": p.to_string()
+                    })),
+                },
+            ],
+            vec![&main_account_keypair(), &k, &k2],
+        );
+    }
+    #[test]
+    #[ignore]
+    fn stake_withdraw_deactivate() {
+        let parsed = constructions_pipe(
+            vec![
+                /*
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 6,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__Deactivate,
+                    metadata: Some(json!({
+                        "source": source(),
+                        "destination": "7pLKwSRmAR3pN3PkBnssm142Pg4Daj86WkWrnGC3Uh7h".to_string()
+                    })),
+                },*/
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 6,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::Stake__Withdraw,
+                    metadata: Some(json!({
+                        "source": "7pLKwSRmAR3pN3PkBnssm142Pg4Daj86WkWrnGC3Uh7h".to_string(),
+                        "withdrawer": source(),
+                        "destination": source(),
+                        "lamports": 350000
+                    })),
+                },
+            ],
+            vec![&main_account_keypair()],
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn stake_setlockup() {
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 6,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::Stake__SetLockup,
+                metadata: Some(json!({
+                    "destination": "7pLKwSRmAR3pN3PkBnssm142Pg4Daj86WkWrnGC3Uh7h".to_string(),
+                    "source": source(),
+                    "lockup": {
+                        "epoch": 0,
+                        "unix_timestamp": 100,
+                        "custodian": source(),
+                    }
+                })),
+            }],
+            vec![&main_account_keypair()],
+        );
+    }
     #[test]
     #[ignore]
     fn test_token_transfer() {
@@ -425,7 +690,7 @@ mod tests {
                     "mint": "3fJRYbtSYZo9SYhwgUBn2zjG98ASy3kuUEnZeHJXqREr",
                 })),
             }],
-            vec![main_account_keypair()],
+            vec![&main_account_keypair()],
         );
     }
 
@@ -479,7 +744,7 @@ mod tests {
                     })),
                 },
             ],
-            vec![main_account_keypair(), keypair],
+            vec![&main_account_keypair(), &keypair],
         );
     }
     #[test]
@@ -506,15 +771,10 @@ mod tests {
             vec![],
         );
     }
-    fn source() -> String {
-        "HJGPMwVuqrbm7BDMeA3shLkqdHUru337fgytM7HzqTnH".to_string()
-    }
-    fn dest() -> String {
-        "CgVKbBwogjaqtGtPLkMBSkhwtkTMLVdSdHM5cWzyxT5n".to_string()
-    }
+
     fn constructions_pipe(
         operations: Vec<Operation>,
-        mut keypairs: Vec<Keypair>,
+        mut keypairs: Vec<&Keypair>,
     ) -> ConstructionParseResponse {
         let rpc = create_rpc_client("https://devnet.solana.com".to_string());
 
@@ -602,22 +862,6 @@ mod tests {
             submited.unwrap().clone().transaction_identifier.hash
         );
         return parsed.into_inner();
-    }
-    fn main_account_keypair() -> Keypair {
-        let privkey =
-            hex::decode("cb1a134c296fbf309d78fe9378c18bc129e5045fbe92d2ad8577ccc84689d4ef")
-                .unwrap();
-        let public =
-            hex::decode("f22742d48ce6eeb0c062237b04a5b7f57bfeb8803e9287cd8a112320860e307a")
-                .unwrap();
-
-        let secret = ed25519_dalek::SecretKey::from_bytes(&privkey).unwrap();
-        let pubkey = ed25519_dalek::PublicKey::from_bytes(&public).unwrap();
-        let keypair = ed25519_dalek::Keypair {
-            secret: secret,
-            public: pubkey,
-        };
-        keypair
     }
     fn sign_msg(keypair: &Keypair, s: &str) -> String {
         let msg = hex::decode(s).unwrap();
