@@ -92,15 +92,15 @@ MODE = "online" //online/offline
 See `types::OperationType` to see full list of current operations supported . This list might not be up to date.
 
 ```
-  System__CreateAccount,
+ 
+    System__CreateAccount,
     System__Assign,
     System__Transfer,
     System__CreateNonceAccount,
     System__AdvanceNonce,
-    System__WithdrawNonceAccount,
+    System__WithdrawFromNonce,
     System__AuthorizeNonce,
     System__Allocate,
-    
     SplToken__InitializeMint,
     SplToken__InitializeAccount,
     SplToken__CreateToken,
@@ -130,6 +130,7 @@ See `types::OperationType` to see full list of current operations supported . Th
     Vote__Withdraw,
     Vote__UpdateValidatorIdentity,
     Vote__UpdateCommission,
+    Unknown,
 ```
 
 #### Simpler Operations
@@ -183,6 +184,7 @@ See tests in `src/construction.rs` to see complete working examples.
 * All preprocess metadata fetching for every operation type
 * Docs for every operation type
 * Suport all operation types
+* Better errors
 
 ## License
 This project is available open source under the terms of the [Apache 2.0 License](https://opensource.org/licenses/Apache-2.0).
