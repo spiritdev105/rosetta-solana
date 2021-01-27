@@ -52,16 +52,31 @@ pub fn account_balance(
         },
         value: balance.to_string(),
     };
-
-    let account_tokens = options
-        .rpc
-        .get_token_accounts_by_owner(&pubkey, TokenAccountsFilter::ProgramId(spl_token::id()))?;
-
     let symbols = if let Some(x) = &account_balance_request.currencies {
         x.iter().map(|c| c.symbol.as_str()).collect::<Vec<&str>>()
     } else {
         vec![]
     };
+
+    let token_acc = options.rpc.get_token_account(&pubkey)?;
+    if let Some(x) = token_acc {
+        let symbol = x.mint;
+
+        if symbols.len() == 0 || symbols.contains(&symbol.as_str()) {
+            balances.push(Amount {
+                currency: Currency {
+                    symbol,
+                    decimals: x.token_amount.decimals,
+                    metadata: None,
+                },
+                value: x.token_amount.amount,
+            });
+        }
+    }
+
+    let account_tokens = options
+        .rpc
+        .get_token_accounts_by_owner(&pubkey, TokenAccountsFilter::ProgramId(spl_token::id()))?;
     account_tokens.into_iter().for_each(|x| {
         if let solana_account_decoder::UiAccountData::Json(parsed_acc) = x.account.data {
             let parsed = serde_json::from_value::<Parsed>(parsed_acc.parsed).unwrap();

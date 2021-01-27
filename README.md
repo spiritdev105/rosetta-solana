@@ -166,9 +166,10 @@ See tests in `construction.rs` to see complete examples.
 
 ## TODO
 
+* Add optional commitment meta option to every operation that accepts
+* More proprocess metadata fetching for every operation type
 * Docs for every operation type
 * More operation types
-* More proprocess metadata fetching for every operation type
 
 ## License
 This project is available open source under the terms of the [Apache 2.0 License](https://opensource.org/licenses/Apache-2.0).
