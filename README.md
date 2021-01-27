@@ -50,6 +50,8 @@ and run one of the following commands:
 * `rosetta-cli check:data --configuration-file rosetta-cli-conf/devnet.json`
 * `rosetta-cli check:construction --configuration-file rosetta-cli-conf/devnet.json`
 
+Note: If cli test gives EOF error it's probably due to golang trying to reuse connection and server closing it. I have disabled keep-alive for that reason. It's recommended to run cli test in dev mode.
+
 ## Development
 * `cargo run` to run server
 * `cargo run test` to run tests
@@ -81,7 +83,7 @@ and run one of the following commands:
 ```
 RPC_URL = "https://devnet.solana.com"
 NETWORK_NAME = "devnet"
-HOST = "localhost"
+HOST = "127.0.0.1"
 PORT = "8080"
 MODE = "online" //online/offline
 ```
@@ -162,14 +164,20 @@ e.g
 ]
 ```
 Both are same operations although the first one (Rosetta spec) always overwrites the second one.
-See tests in `construction.rs` to see complete examples.
+
+#### Nonce transfers
+
+To send a transaction with a nonce you need to add metadata to construction_preprosess with `{"metadata": {"with_nonce": {"account": "address of nonce account"}}}`
+
+### Examples 
+See tests in `src/construction.rs` to see complete working examples.
 
 ## TODO
 
-* Add optional commitment meta option to every operation that accepts
-* More proprocess metadata fetching for every operation type
+* Add optional commitment option to every operation that accepts
+* All preprocess metadata fetching for every operation type
 * Docs for every operation type
-* More operation types
+* Suport all operation types
 
 ## License
 This project is available open source under the terms of the [Apache 2.0 License](https://opensource.org/licenses/Apache-2.0).

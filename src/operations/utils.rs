@@ -73,7 +73,7 @@ pub fn get_operations_from_encoded_tx(
                                 | OperationType::SplToken__Transfer
                                 | OperationType::SplToken__TransferChecked => {
                                     let parsed_meta = OpMeta::from(&Some(metadata.clone()));
-                                    let parsed_meta_cloned = parsed_meta.clone();
+                                    let mut parsed_meta_cloned = parsed_meta.clone();
                                     let currency = Currency {
                                         symbol: parsed_meta
                                             .mint
@@ -105,6 +105,20 @@ pub fn get_operations_from_encoded_tx(
                                         index: (op_index) as u64,
                                         network_index: None,
                                     };
+
+                                    //for construction test
+                                    parsed_meta_cloned.amount = None;
+                                    parsed_meta_cloned.lamports = None;
+                                    parsed_meta_cloned.source = None;
+                                    parsed_meta_cloned.destination = None;
+
+                                    let res = serde_json::to_value(parsed_meta_cloned).unwrap();
+                                    let (metasend, metarec) = if res.as_object().unwrap().is_empty()
+                                    {
+                                        (None, None)
+                                    } else {
+                                        (Some(res.clone()), Some(res))
+                                    };
                                     //sender push
                                     operations.push(Operation {
                                         operation_identifier: oi.clone(),
@@ -113,7 +127,7 @@ pub fn get_operations_from_encoded_tx(
                                         status: status.clone(),
                                         account: sender,
                                         amount: sender_amt,
-                                        metadata: Some(metadata.clone()),
+                                        metadata: metasend,
                                     });
                                     //receiver push
                                     operations.push(Operation {
@@ -123,7 +137,7 @@ pub fn get_operations_from_encoded_tx(
                                         status: status.clone(),
                                         account: receiver,
                                         amount: receiver_amt,
-                                        metadata: Some(metadata),
+                                        metadata: metarec,
                                     });
                                 }
                                 _ => {

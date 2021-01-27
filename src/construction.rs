@@ -1,8 +1,15 @@
+use std::str::FromStr;
+
 use crate::{
-    error::ApiError, is_bad_network, operations::matcher::InternalOperation,
-    operations::matcher::InternalOperationMetadata, operations::matcher::Matcher,
-    operations::spltoken::SplTokenOperationMetadata, types::OperationType,
-    types::OptionalInternalOperationMetadatas, Options,
+    error::ApiError,
+    is_bad_network,
+    operations::get_tx_from_str,
+    operations::matcher::InternalOperationMetadata,
+    operations::matcher::Matcher,
+    operations::spltoken::SplTokenOperationMetadata,
+    types::{OperationType, WithNonce},
+    utils::to_pub,
+    Options,
 };
 use crate::{
     operations::utils::get_operations_from_encoded_tx,
@@ -13,14 +20,16 @@ use crate::{
         ConstructionParseRequest, ConstructionParseResponse, ConstructionPayloadsRequest,
         ConstructionPayloadsResponse, ConstructionPreprocessRequest,
         ConstructionPreprocessResponse, ConstructionSubmitRequest, ConstructionSubmitResponse,
-        CurveType, MetadataOptions, Operation, SignatureType, SigningPayload,
-        TransactionIdentifier, TransactionIdentifierResponse,
+        CurveType, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
+        TransactionIdentifierResponse,
     },
 };
 use rocket_contrib::json::Json;
+use serde::{Deserialize, Serialize};
+use solana_account_decoder::{UiAccount, UiAccountData, UiAccountEncoding, UiFeeCalculator};
 use solana_sdk::{
-    hash::Hash, instruction::Instruction, message::Message, program_pack::Pack, pubkey::Pubkey,
-    signature::Signature, transaction::Transaction,
+    fee_calculator::FeeCalculator, hash::Hash, message::Message, program_pack::Pack,
+    pubkey::Pubkey, signature::Signature, transaction::Transaction,
 };
 use solana_transaction_status::{EncodedTransaction, UiMessage, UiTransactionEncoding};
 use spl_token::state::{Account, Mint};
@@ -71,9 +80,16 @@ pub fn construction_preprocess(
 
     let mut matcher = Matcher::new(&construction_preprocess_request.operations, None);
     let internal_operations = matcher.combine()?;
+
+    let with_nonce = if let Some(x) = construction_preprocess_request.metadata {
+        x.with_nonce
+    } else {
+        None
+    };
     let response = ConstructionPreprocessResponse {
         options: Some(MetadataOptions {
             internal_operations,
+            with_nonce,
         }),
     };
     Ok(Json(response))
@@ -85,9 +101,33 @@ pub fn construction_metadata(
     options: &Options,
 ) -> Result<Json<ConstructionMetadataResponse>, ApiError> {
     is_bad_network(&options, &construction_metadata_request.network_identifier)?;
-
+    #[serde(rename_all = "camelCase")]
+    #[derive(Default, Serialize, Deserialize, Clone, Debug)]
+    struct Info {
+        authority: String,
+        blockhash: String,
+        fee_calculator: UiFeeCalculator,
+    }
+    #[derive(Default, Serialize, Deserialize, Clone, Debug)]
+    struct Parsed {
+        info: Info,
+    }
     //optional metadata for some special types
+    let mut with_nonce = None;
+    let mut parsed = Parsed::default();
     let internal_meta = if let Some(x) = &construction_metadata_request.options {
+        if let Some(n) = &x.with_nonce {
+            let pubkey = &to_pub(&n.account);
+            let acc = options.rpc.get_account(pubkey)?;
+            let uiacc = UiAccount::encode(pubkey, acc, UiAccountEncoding::JsonParsed, None, None);
+            if let UiAccountData::Json(parsed_acc) = uiacc.data {
+                parsed = serde_json::from_value::<Parsed>(parsed_acc.parsed).unwrap();
+                with_nonce = Some(WithNonce {
+                    account: n.account.clone(),
+                    authority: Some(parsed.info.authority),
+                });
+            }
+        };
         let ops = x
             .internal_operations
             .iter()
@@ -125,12 +165,27 @@ pub fn construction_metadata(
         None
     };
     //required metadata
-    let (hash, fee_calculator) = options.rpc.get_recent_blockhash()?;
+    let (hash, fee_calculator) = if with_nonce.is_none() {
+        options.rpc.get_recent_blockhash()?
+    } else {
+        (
+            Hash::from_str(&parsed.info.blockhash).unwrap(),
+            FeeCalculator::new(
+                parsed
+                    .info
+                    .fee_calculator
+                    .lamports_per_signature
+                    .parse::<u64>()
+                    .unwrap(),
+            ),
+        )
+    };
     let response = ConstructionMetadataResponse {
         metadata: ConstructionMetadata {
             blockhash: hash.to_string(),
             fee_calculator,
             internal_meta,
+            with_nonce,
         },
     };
     Ok(Json(response))
@@ -143,7 +198,9 @@ pub fn construction_payloads(
 ) -> Result<Json<ConstructionPayloadsResponse>, ApiError> {
     is_bad_network(&options, &construction_payloads_request.network_identifier)?;
 
+    let mut with_nonce = None;
     let meta = if let Some(x) = &construction_payloads_request.metadata {
+        with_nonce = x.with_nonce.clone();
         if let Some(x) = &x.internal_meta {
             Some(x.clone())
         } else {
@@ -152,7 +209,30 @@ pub fn construction_payloads(
     } else {
         None
     };
-    let mut tx = tx_from_operations(&construction_payloads_request.operations, meta)?;
+    let mut matcher = Matcher::new(&construction_payloads_request.operations, meta);
+    let instructions = matcher.to_instructions()?;
+    let mut fee_payer = None;
+    let mut fee_payer_pub = None;
+    instructions.iter().for_each(|x| {
+        if let Some(y) = x.accounts.iter().find(|a| a.is_signer) {
+            fee_payer_pub = Some(y.pubkey.clone());
+        }
+    });
+    if let Some(x) = &fee_payer_pub {
+        fee_payer = Some(x);
+    };
+
+    let msg = if let Some(x) = with_nonce {
+        Message::new_with_nonce(
+            instructions,
+            fee_payer,
+            &to_pub(&x.account),
+            &to_pub(&x.authority.unwrap()),
+        )
+    } else {
+        Message::new(&instructions, fee_payer)
+    };
+    let mut tx = Transaction::new_unsigned(msg);
     //recent_blockhash is required as metadata
     if let Some(x) = &construction_payloads_request.metadata {
         let h = bs58::decode(&x.blockhash).into_vec().unwrap();
@@ -188,16 +268,7 @@ pub fn construction_payloads(
         })
         .take_while(|e| e.is_some())
         .collect::<Vec<Option<SigningPayload>>>();
-    /*
-    vec![SigningPayload {
-        account_identifier: Some(AccountIdentifier {
-            address: bs58::encode(tx.message.account_keys[0].to_bytes()).into_string(),
-            sub_account: None,
-        }),
-        hex_bytes: to_be_signed,
-        signature_type: Some(SignatureType::Ed25519),
-    }];
-    */
+
     let response = ConstructionPayloadsResponse {
         unsigned_transaction,
         payloads: signing_payloads,
@@ -286,7 +357,9 @@ pub fn construction_submit(
 ) -> Result<Json<ConstructionSubmitResponse>, ApiError> {
     is_bad_network(&options, &construction_submit_request.network_identifier)?;
     let tx = get_tx_from_str(&construction_submit_request.signed_transaction)?;
-    let signature = options.rpc.send_transaction(&tx)?;
+    let signatureres = options.rpc.send_transaction(&tx);
+    let signature = signatureres?;
+
     let response = ConstructionSubmitResponse {
         transaction_identifier: TransactionIdentifier {
             hash: signature.to_string(),
@@ -294,49 +367,9 @@ pub fn construction_submit(
     };
     Ok(Json(response))
 }
-fn tx_from_operations(
-    operations: &Vec<Operation>,
-    meta: OptionalInternalOperationMetadatas,
-) -> Result<Transaction, ApiError> {
-    let mut matcher = Matcher::new(operations, meta);
-    let instructions = matcher.to_instructions()?;
-    let mut fee_payer = None;
-    instructions.iter().for_each(|x| {
-        if let Some(y) = x.accounts.iter().find(|a| a.is_signer) {
-            fee_payer = Some(&y.pubkey);
-        }
-    });
-    let msg = Message::new(&instructions, fee_payer);
-    let tx = Transaction::new_unsigned(msg);
-    /*
-    FIXME: If Operation types are "Unknown" then because this(EncodedTransaction) returns PartiallyDecodedInstruction for some cases.
-    println!("{:?}", &tx);
-    println!(
-        "{:?}",
-        EncodedTransaction::encode(tx.clone(), UiTransactionEncoding::JsonParsed)
-    );
-    */
-    Ok(tx)
-}
-fn get_tx_from_str(s: &str) -> Result<Transaction, ApiError> {
-    let try_bs58 = bs58::decode(&s).into_vec().unwrap_or(vec![]);
-    if try_bs58.len() == 0 {
-        return Err(ApiError::InvalidSignedTransaction);
-    }
-    let data = try_bs58;
-    /*
-    let try_base64 = base64::decode(&s);
-    let data = if try_base64.is_err() {
-    } else {
-        try_base64.unwrap()
-    };
-    */
-    Ok(bincode::deserialize(&data).unwrap())
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, thread, time::Duration};
+    use std::{thread, time::Duration};
 
     use ed25519_dalek::*;
     use serde_json::json;
@@ -430,6 +463,7 @@ mod tests {
                 },
             ],
             vec![&main_account_keypair(), &k, &k2],
+            None,
         );
     }
     #[test]
@@ -471,6 +505,7 @@ mod tests {
                 },
             ],
             vec![&main_account_keypair()],
+            None,
         );
     }
     #[test]
@@ -529,6 +564,7 @@ mod tests {
                 },
             ],
             vec![&main_account_keypair()],
+            None,
         );
     }
 
@@ -554,6 +590,7 @@ mod tests {
                 })),
             }],
             vec![&main_account_keypair(), &k],
+            None,
         );
         thread::sleep(Duration::from_secs(20));
         let parsed = constructions_pipe(
@@ -566,15 +603,18 @@ mod tests {
                 status: None,
                 account: None,
                 amount: None,
-                type_: OperationType::System__AdvanceNonceAccount,
+                type_: OperationType::System__Transfer,
                 metadata: Some(json!({
                     "source": source(),
-                    "destination": p.to_string()
+                    "destination": dest(),
+                    "lamports": 1000,
                 })),
             }],
             vec![&main_account_keypair()],
+            Some(p.to_string()),
         );
     }
+
     #[test]
     #[ignore]
     fn test_stake_accounts() {
@@ -690,6 +730,7 @@ mod tests {
                 },
             ],
             vec![&main_account_keypair(), &k, &k2],
+            None,
         );
     }
     #[test]
@@ -732,6 +773,7 @@ mod tests {
                 },
             ],
             vec![&main_account_keypair()],
+            None,
         );
     }
 
@@ -760,6 +802,7 @@ mod tests {
                 })),
             }],
             vec![&main_account_keypair()],
+            None,
         );
     }
     #[test]
@@ -787,6 +830,7 @@ mod tests {
                 })),
             }],
             vec![&main_account_keypair()],
+            None,
         );
     }
 
@@ -820,12 +864,14 @@ mod tests {
                 })),
             }],
             vec![],
+            None,
         );
     }
 
     fn constructions_pipe(
         operations: Vec<Operation>,
         mut keypairs: Vec<&Keypair>,
+        nonce: Option<String>,
     ) -> ConstructionParseResponse {
         let rpc = create_rpc_client("https://devnet.solana.com".to_string());
 
@@ -838,10 +884,21 @@ mod tests {
             network: "devnet".to_string(),
             sub_network_identifier: None,
         };
+        let prepmeta = if let Some(x) = nonce {
+            Some(ConstructionPreprocessRequestMetadata {
+                with_nonce: Some(WithNonce {
+                    account: x,
+                    authority: None,
+                }),
+            })
+        } else {
+            None
+        };
         let preproess = construction_preprocess(
             ConstructionPreprocessRequest {
                 network_identifier: network_identifier.clone(),
                 operations: operations.clone(),
+                metadata: prepmeta,
             },
             &options,
         )

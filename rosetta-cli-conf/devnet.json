@@ -13,11 +13,11 @@
     "compression_disabled": true,
     "memory_limit_disabled": true,
     "construction": {
-        "stale_depth": 3,
+        "stale_depth": 1000000,
         "broadcast_limit": 5,
         "constructor_dsl_file": "solana.ros",
         "end_conditions": {
-            "transfer": 2
+            "transfer": 5
         }
     },
     "data": {

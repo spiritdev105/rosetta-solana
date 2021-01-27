@@ -99,11 +99,12 @@ impl<'a> Matcher<'a> {
                             let amount = matched_op.amount();
                             let address = matched_op.address();
 
+                            //if subamt is -ve then subamt is sender is source
                             let (source, destination, lamports) = if amount < 0.0 {
                                 //negative = this is sender
                                 (address, main_address, main_amount as u64)
                             } else {
-                                (address, main_address, amount as u64)
+                                (main_address, address, amount as u64)
                             };
                             if meta_clone.is_none() {
                                 meta_clone = Some(serde_json::json!({}));

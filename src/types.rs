@@ -491,8 +491,14 @@ pub struct ConstructionPayloadsResponse {
 pub struct ConstructionPreprocessRequest {
     pub network_identifier: NetworkIdentifier,
     pub operations: Vec<Operation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<ConstructionPreprocessRequestMetadata>,
 }
-
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ConstructionPreprocessRequestMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub with_nonce: Option<WithNonce>,
+}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConstructionPreprocessResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -608,6 +614,7 @@ pub struct Version {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MetadataOptions {
     pub internal_operations: Vec<InternalOperation>,
+    pub with_nonce: Option<WithNonce>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -622,4 +629,11 @@ pub struct ConstructionMetadata {
     pub blockhash: String,
     pub fee_calculator: FeeCalculator,
     pub internal_meta: OptionalInternalOperationMetadatas,
+    pub with_nonce: Option<WithNonce>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct WithNonce {
+    pub account: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority: Option<String>,
 }

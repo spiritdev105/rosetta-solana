@@ -46,13 +46,14 @@ fn get_rocket_env() -> Environment {
 fn main() {
     let rpc_url = env::var("RPC_URL").unwrap_or("https://devnet.solana.com".to_string());
     let network = env::var("NETWORK_NAME").unwrap_or("devnet".to_string());
-    let host = env::var("HOST").unwrap_or("localhost".to_string());
+    let host = env::var("HOST").unwrap_or("127.0.0.1".to_string());
     let port = env::var("PORT").unwrap_or("8080".to_string());
     let mode = env::var("MODE").unwrap_or("online".to_string());
     let rpc = create_rpc_client(rpc_url.clone());
     let options = Options { rpc, network };
 
     let config = Config::build(get_rocket_env())
+        .keep_alive(0) //rosetta cli giving eof error if this is not disabled
         .address(host)
         .port(port.parse::<u16>().unwrap())
         .finalize()
