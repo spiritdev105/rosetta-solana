@@ -77,6 +77,10 @@ mod tests {
             OperationType::SplToken__TransferChecked
         );
         assert_eq!(
+            get_operation_type_with_program("system", "withdrawFromNonce"),
+            OperationType::System__WithdrawFromNonce
+        );
+        assert_eq!(
             get_operation_type("system__transfer"),
             OperationType::System__Transfer
         );

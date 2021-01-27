@@ -96,9 +96,9 @@ See `types::OperationType` to see full list of current operations supported . Th
     System__Assign,
     System__Transfer,
     System__CreateNonceAccount,
-    System__AdvanceNonceAccount,
+    System__AdvanceNonce,
     System__WithdrawNonceAccount,
-    System__AuthorizeNonceAccount,
+    System__AuthorizeNonce,
     System__Allocate,
     
     SplToken__InitializeMint,
@@ -168,6 +168,11 @@ Both are same operations although the first one (Rosetta spec) always overwrites
 #### Nonce transfers
 
 To send a transaction with a nonce you need to add metadata to construction_preprosess with `{"metadata": {"with_nonce": {"account": "address of nonce account"}}}`
+
+#### Balance changing Operations
+
+See imp of `OperationType` in `src/types.rs` for list of balance changing operations. They might also require additional metadata depending on operation. Operation where only change is fees are not considered balance changing operation. Operation with only 1 balance change with no equal opposite signed opration are also not balance changing e.g mint or burn.
+
 
 ### Examples 
 See tests in `src/construction.rs` to see complete working examples.

@@ -40,13 +40,11 @@ pub fn to_instruction(
             metadata.lamports.unwrap_or(1000000000),
         ),
 
-        OperationType::System__AdvanceNonceAccount => {
-            vec![system_instruction::advance_nonce_account(
-                &to_pub(&metadata.destination.unwrap()),
-                &to_pub(&metadata.authority.unwrap()),
-            )]
-        }
-        OperationType::System__WithdrawNonceAccount => {
+        OperationType::System__AdvanceNonce => vec![system_instruction::advance_nonce_account(
+            &to_pub(&metadata.destination.unwrap()),
+            &to_pub(&metadata.authority.unwrap()),
+        )],
+        OperationType::System__WithdrawFromNonce => {
             vec![system_instruction::withdraw_nonce_account(
                 &to_pub(&metadata.source.unwrap()),
                 &to_pub(&metadata.authority.unwrap()),
@@ -54,13 +52,11 @@ pub fn to_instruction(
                 metadata.lamports.unwrap(),
             )]
         }
-        OperationType::System__AuthorizeNonceAccount => {
-            vec![system_instruction::authorize_nonce_account(
-                &to_pub(&metadata.destination.unwrap()),
-                &to_pub(&metadata.authority.unwrap()),
-                &to_pub(&metadata.new_authority.unwrap()),
-            )]
-        }
+        OperationType::System__AuthorizeNonce => vec![system_instruction::authorize_nonce_account(
+            &to_pub(&metadata.destination.unwrap()),
+            &to_pub(&metadata.authority.unwrap()),
+            &to_pub(&metadata.new_authority.unwrap()),
+        )],
         OperationType::System__Allocate => vec![system_instruction::allocate(
             &to_pub(&metadata.source.unwrap()),
             metadata.space.unwrap(),

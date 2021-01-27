@@ -242,9 +242,9 @@ pub enum OperationType {
     System__Transfer,
     //    System__CreateAccountWithSeed,
     System__CreateNonceAccount,
-    System__AdvanceNonceAccount,
-    System__WithdrawNonceAccount,
-    System__AuthorizeNonceAccount,
+    System__AdvanceNonce,
+    System__WithdrawFromNonce,
+    System__AuthorizeNonce,
     System__Allocate,
     //System__AllocateWithSeed,
     //System__AssignWithSeed,
@@ -282,6 +282,27 @@ pub enum OperationType {
     Vote__UpdateCommission,
     //Vote__VoteSwitch,
     Unknown,
+}
+//TODO: Add all balance changing oepration types
+//make sure the the source and destination json names of them are added as alias in OpMeta struct or this wont work
+//e.g nonceAccount returned as source in WithdrawFromNonce Operation from json rpc
+//see transaction-status parse_x for names
+//operations wheres theres no equal negative and positive are not eligible for balance changing. e.g mint or burn where theres nobody on sending or receving end
+impl OperationType {
+    pub fn is_balance_changing(&self) -> bool {
+        match &self {
+            OperationType::System__CreateAccount
+            | OperationType::System__WithdrawFromNonce
+            | OperationType::System__Transfer
+            | OperationType::SplToken__Transfer
+            | OperationType::SplToken__TransferChecked
+            | OperationType::Stake__Split
+            | OperationType::Stake__Merge
+            | OperationType::Stake__Withdraw
+            | OperationType::Vote__Withdraw => true,
+            _ => false,
+        }
+    }
 }
 #[derive(
     Clone, Debug, Deserialize, Serialize, PartialEq, strum::EnumIter, strum_macros::EnumString,

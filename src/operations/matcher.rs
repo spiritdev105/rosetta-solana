@@ -168,9 +168,9 @@ impl<'a> Matcher<'a> {
                     | OperationType::System__Transfer
                     | OperationType::System__Allocate
                     | OperationType::System__CreateNonceAccount
-                    | OperationType::System__AdvanceNonceAccount
-                    | OperationType::System__WithdrawNonceAccount
-                    | OperationType::System__AuthorizeNonceAccount => {
+                    | OperationType::System__AdvanceNonce
+                    | OperationType::System__WithdrawFromNonce
+                    | OperationType::System__AuthorizeNonce => {
                         let mut new_metadata = set_meta!(meta_clone, SystemOperationMetadata);
                         merge_meta!(new_metadata, &self.meta, internal_operations.len(), System);
 

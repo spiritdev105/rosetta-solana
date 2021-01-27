@@ -24,7 +24,6 @@
         "start_index": 31195318,
         "initial_balance_fetch_disabled": true,
         "active_reconciliation_concurrency": 32,
-        "bootstrap_balances": "bootstrap_balances.json",
         "end_conditions": {
             "index": 31195418,
             "reconciliation_coverage": {

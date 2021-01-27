@@ -585,7 +585,6 @@ mod tests {
                 type_: OperationType::System__CreateNonceAccount,
                 metadata: Some(json!({
                     "source": source(),
-                    "authority": source(),
                     "destination": p.to_string()
                 })),
             }],
@@ -611,6 +610,27 @@ mod tests {
                 })),
             }],
             vec![&main_account_keypair()],
+            Some(p.to_string()),
+        );
+        thread::sleep(Duration::from_secs(20));
+        let parsed = constructions_pipe(
+            vec![Operation {
+                operation_identifier: OperationIdentifier {
+                    index: 1,
+                    network_index: None,
+                },
+                related_operations: None,
+                status: None,
+                account: None,
+                amount: None,
+                type_: OperationType::System__WithdrawFromNonce,
+                metadata: Some(json!({
+                    "source": p.to_string(),
+                    "destination": source(),
+                    "lamports": 1000,
+                })),
+            }],
+            vec![&main_account_keypair(), &k],
             Some(p.to_string()),
         );
     }
