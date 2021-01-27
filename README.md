@@ -183,9 +183,9 @@ See tests in `src/construction.rs` to see complete working examples.
 
 * Add optional commitment option to every operation that accepts
 * All preprocess metadata fetching for every operation type
-* Docs for every operation type
 * Suport all operation types
 * Better errors
+* Separate crates for proper docs
 
 ## License
 This project is available open source under the terms of the [Apache 2.0 License](https://opensource.org/licenses/Apache-2.0).
