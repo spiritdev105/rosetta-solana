@@ -1,16 +1,16 @@
+use crate::{error::ApiError, types::OperationType, utils::to_pub};
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, system_instruction};
 
-use crate::{error::ApiError, types::OperationType, utils::to_pub};
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Merge, Clone, Debug, Deserialize, Serialize, Default)]
 pub struct SystemOperationMetadata {
-    source: Option<String>,
-    destination: Option<String>,
-    space: Option<u64>,
-    lamports: Option<u64>,
-    authority: Option<String>,
-    new_authority: Option<String>,
+    pub source: Option<String>,
+    pub destination: Option<String>,
+    pub space: Option<u64>,
+    pub lamports: Option<u64>,
+    pub authority: Option<String>,
+    pub new_authority: Option<String>,
 }
 pub fn to_instruction(
     type_: OperationType,

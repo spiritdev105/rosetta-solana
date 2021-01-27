@@ -7,12 +7,11 @@ use crate::{
     utils::get_operation_type_with_program,
 };
 
+use super::OpMeta;
 use solana_transaction_status::{
     parse_instruction::ParsedInstructionEnum, EncodedTransaction, UiInstruction, UiMessage,
     UiParsedInstruction,
 };
-
-use super::OpMeta;
 
 #[macro_export]
 macro_rules! set_meta {
@@ -22,6 +21,21 @@ macro_rules! set_meta {
         } else {
             $metastruct::default()
         }
+    };
+}
+#[macro_export]
+macro_rules! merge_meta {
+    ($metadata:expr, $defmeta:expr, $i:expr, $enum:ident) => {
+        if let Some(x) = $defmeta {
+            if let Some(y) = &x[$i] {
+                match y {
+                    InternalOperationMetadata::$enum(x) => {
+                        $metadata.merge(x.clone());
+                    }
+                    _ => {}
+                }
+            }
+        };
     };
 }
 pub fn get_operations_from_encoded_tx(

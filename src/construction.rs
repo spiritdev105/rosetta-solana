@@ -1,4 +1,9 @@
-use crate::{error::ApiError, is_bad_network, operations::matcher::Matcher, Options};
+use crate::{
+    error::ApiError, is_bad_network, operations::matcher::InternalOperation,
+    operations::matcher::InternalOperationMetadata, operations::matcher::Matcher,
+    operations::spltoken::SplTokenOperationMetadata, types::OperationType,
+    types::OptionalInternalOperationMetadatas, Options,
+};
 use crate::{
     operations::utils::get_operations_from_encoded_tx,
     types::{
@@ -14,10 +19,11 @@ use crate::{
 };
 use rocket_contrib::json::Json;
 use solana_sdk::{
-    hash::Hash, instruction::Instruction, message::Message, pubkey::Pubkey, signature::Signature,
-    transaction::Transaction,
+    hash::Hash, instruction::Instruction, message::Message, program_pack::Pack, pubkey::Pubkey,
+    signature::Signature, transaction::Transaction,
 };
 use solana_transaction_status::{EncodedTransaction, UiMessage, UiTransactionEncoding};
+use spl_token::state::{Account, Mint};
 
 pub fn construction_derive(
     construction_derive_request: ConstructionDeriveRequest,
@@ -63,8 +69,12 @@ pub fn construction_preprocess(
         &construction_preprocess_request.network_identifier,
     )?;
 
+    let mut matcher = Matcher::new(&construction_preprocess_request.operations, None);
+    let internal_operations = matcher.combine()?;
     let response = ConstructionPreprocessResponse {
-        options: MetadataOptions {}, //TODO: Add as necessary
+        options: Some(MetadataOptions {
+            internal_operations,
+        }),
     };
     Ok(Json(response))
 }
@@ -76,11 +86,51 @@ pub fn construction_metadata(
 ) -> Result<Json<ConstructionMetadataResponse>, ApiError> {
     is_bad_network(&options, &construction_metadata_request.network_identifier)?;
 
+    //optional metadata for some special types
+    let internal_meta = if let Some(x) = &construction_metadata_request.options {
+        let ops = x
+            .internal_operations
+            .iter()
+            .map(|x| match x.type_ {
+                //TODO: Add more metadata as required
+                OperationType::SplToken__CreateAccount => {
+                    let rent = options
+                        .rpc
+                        .get_minimum_balance_for_rent_exemption(Account::LEN)
+                        .unwrap();
+                    Some(InternalOperationMetadata::SplToken(
+                        SplTokenOperationMetadata {
+                            amount: Some(rent),
+                            ..Default::default()
+                        },
+                    ))
+                }
+                OperationType::SplToken__CreateToken => {
+                    let rent = options
+                        .rpc
+                        .get_minimum_balance_for_rent_exemption(Mint::LEN)
+                        .unwrap();
+                    Some(InternalOperationMetadata::SplToken(
+                        SplTokenOperationMetadata {
+                            amount: Some(rent),
+                            ..Default::default()
+                        },
+                    ))
+                }
+                _ => None,
+            })
+            .collect::<Vec<Option<InternalOperationMetadata>>>();
+        Some(ops)
+    } else {
+        None
+    };
+    //required metadata
     let (hash, fee_calculator) = options.rpc.get_recent_blockhash()?;
     let response = ConstructionMetadataResponse {
         metadata: ConstructionMetadata {
             blockhash: hash.to_string(),
             fee_calculator,
+            internal_meta,
         },
     };
     Ok(Json(response))
@@ -93,7 +143,16 @@ pub fn construction_payloads(
 ) -> Result<Json<ConstructionPayloadsResponse>, ApiError> {
     is_bad_network(&options, &construction_payloads_request.network_identifier)?;
 
-    let mut tx = tx_from_operations(&construction_payloads_request.operations)?;
+    let meta = if let Some(x) = &construction_payloads_request.metadata {
+        if let Some(x) = &x.internal_meta {
+            Some(x.clone())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let mut tx = tx_from_operations(&construction_payloads_request.operations, meta)?;
     //recent_blockhash is required as metadata
     if let Some(x) = &construction_payloads_request.metadata {
         let h = bs58::decode(&x.blockhash).into_vec().unwrap();
@@ -235,8 +294,11 @@ pub fn construction_submit(
     };
     Ok(Json(response))
 }
-fn tx_from_operations(operations: &Vec<Operation>) -> Result<Transaction, ApiError> {
-    let mut matcher = Matcher::new(operations);
+fn tx_from_operations(
+    operations: &Vec<Operation>,
+    meta: OptionalInternalOperationMetadatas,
+) -> Result<Transaction, ApiError> {
+    let mut matcher = Matcher::new(operations, meta);
     let instructions = matcher.to_instructions()?;
     let mut fee_payer = None;
     instructions.iter().for_each(|x| {
@@ -282,6 +344,7 @@ mod tests {
     use crate::{consts, create_rpc_client, types::*};
 
     //live debug tests on devnet
+    //TODO: remove hardcoded keys
 
     use super::*;
 
@@ -312,28 +375,61 @@ mod tests {
     #[test]
     #[ignore]
     fn test_token_bulk() {
+        let (k, p) = new_throwaway_signer();
+        let (k2, p2) = new_throwaway_signer();
+
         let parsed = constructions_pipe(
-            vec![Operation {
-                operation_identifier: OperationIdentifier {
-                    index: 6,
-                    network_index: None,
+            vec![
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 0,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::SplToken__CreateToken,
+                    metadata: Some(json!({
+                        "mint": p.to_string(),
+                        "source": source()
+                    })),
                 },
-                related_operations: None,
-                status: None,
-                account: None,
-                amount: None,
-                type_: OperationType::SplToken__CreateAccount,
-                metadata: Some(json!({
-                    "destination": "7pLKwSRmAR3pN3PkBnssm142Pg4Daj86WkWrnGC3Uh7h".to_string(),
-                    "source": source(),
-                    "lockup": {
-                        "epoch": 0,
-                        "unix_timestamp": 100,
-                        "custodian": source(),
-                    }
-                })),
-            }],
-            vec![&main_account_keypair()],
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 1,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::SplToken__CreateAccount,
+                    metadata: Some(json!({
+                        "mint": p.to_string(),
+                        "source": source(),
+                        "destination": p2.to_string(),
+                    })),
+                },
+                Operation {
+                    operation_identifier: OperationIdentifier {
+                        index: 2,
+                        network_index: None,
+                    },
+                    related_operations: None,
+                    status: None,
+                    account: None,
+                    amount: None,
+                    type_: OperationType::SplToken__MintTo,
+                    metadata: Some(json!({
+                        "mint": p.to_string(),
+                        "source": p2.to_string(),
+                        "authority": source(),
+                        "amount": 1000,
+                    })),
+                },
+            ],
+            vec![&main_account_keypair(), &k, &k2],
         );
     }
     #[test]
@@ -359,7 +455,7 @@ mod tests {
                 },
                 Operation {
                     operation_identifier: OperationIdentifier {
-                        index: 0,
+                        index: 1,
                         network_index: None,
                     },
                     related_operations: None,
@@ -704,51 +800,6 @@ mod tests {
     }
     #[test]
     #[ignore]
-    fn test_token_create() {
-        let (keypair, pubkey) = new_throwaway_signer();
-        let token = pubkey.to_string();
-        let rpc = create_rpc_client("https://devnet.solana.com".to_string());
-        let parsed = constructions_pipe(
-            vec![
-                Operation {
-                    operation_identifier: OperationIdentifier {
-                        index: 0,
-                        network_index: None,
-                    },
-                    related_operations: None,
-                    status: None,
-                    account: None,
-                    amount: None,
-                    type_: OperationType::System__CreateAccount,
-                    metadata: Some(json!({
-                        "source": source(),
-                        "mint": token,
-                        "amount": "1000",
-                        "space": 82
-                    })),
-                },
-                Operation {
-                    operation_identifier: OperationIdentifier {
-                        index: 0,
-                        network_index: None,
-                    },
-                    related_operations: None,
-                    status: None,
-                    account: None,
-                    amount: None,
-                    type_: OperationType::SplToken__InitializeMint,
-                    metadata: Some(json!({
-                        "source": source(),
-                        "mint": token,
-                        "decimals": 2,
-                    })),
-                },
-            ],
-            vec![&main_account_keypair(), &keypair],
-        );
-    }
-    #[test]
-    #[ignore]
     fn test_construction_create_assoc_acc() {
         //wont create anymore coz already created change mint address
 
@@ -787,15 +838,25 @@ mod tests {
             network: "devnet".to_string(),
             sub_network_identifier: None,
         };
-        let metadata = construction_metadata(
-            ConstructionMetadataRequest {
+        let preproess = construction_preprocess(
+            ConstructionPreprocessRequest {
                 network_identifier: network_identifier.clone(),
-                options: None,
+                operations: operations.clone(),
             },
             &options,
         )
         .unwrap();
+        println!("Preproess {:?} \n\n", &preproess.options);
 
+        let metadata = construction_metadata(
+            ConstructionMetadataRequest {
+                network_identifier: network_identifier.clone(),
+                options: preproess.into_inner().options,
+            },
+            &options,
+        )
+        .unwrap();
+        println!("Metadata {:?} \n\n", metadata);
         let payloads = construction_payloads(
             ConstructionPayloadsRequest {
                 network_identifier: network_identifier.clone(),
@@ -805,7 +866,7 @@ mod tests {
             &options,
         )
         .unwrap();
-        println!("Payloads {:?}", payloads);
+        println!("Payloads {:?} \n\n", payloads);
         let parsed = construction_parse(
             ConstructionParseRequest {
                 network_identifier: network_identifier.clone(),
@@ -815,7 +876,7 @@ mod tests {
             &options,
         )
         .unwrap();
-        println!("Parsed {:?}", parsed);
+        println!("Parsed {:?} \n\n", parsed);
         let signatures = payloads
             .clone()
             .payloads
@@ -838,7 +899,7 @@ mod tests {
                 }
             })
             .collect::<Vec<crate::types::Signature>>();
-        println!("Signatures {:?}", signatures);
+        println!("Signatures {:?} \n\n", signatures);
         let combined = construction_combine(
             ConstructionCombineRequest {
                 network_identifier: network_identifier.clone(),
@@ -848,7 +909,7 @@ mod tests {
             &options,
         )
         .unwrap();
-        println!("Signed TX: {:?}", combined.signed_transaction.clone());
+        println!("Signed TX: {:?} \n\n", combined.signed_transaction.clone());
 
         let submited = construction_submit(
             ConstructionSubmitRequest {
@@ -858,7 +919,7 @@ mod tests {
             &options,
         );
         println!(
-            "Broadcasted TX Hash: {:?}",
+            "Broadcasted TX Hash: {:?} \n\n",
             submited.unwrap().clone().transaction_identifier.hash
         );
         return parsed.into_inner();

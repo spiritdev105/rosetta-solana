@@ -19,6 +19,7 @@ base64="*"
 strum = { version = "0.18", features = ["derive"] }
 strum_macros="*"
 convert_case="*"
+merge="*"
 
 spl-token = { version="3.0.1", features = ["no-entrypoint"] }
 #spl-token-v3 = { version="3.0.1", features = ["no-entrypoint"] }

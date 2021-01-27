@@ -1,3 +1,5 @@
+use crate::{error::ApiError, types::OperationType, utils::to_pub};
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 use solana_sdk::instruction::Instruction;
 use solana_vote_program::{
@@ -5,20 +7,18 @@ use solana_vote_program::{
     vote_state::{VoteAuthorize, VoteInit},
 };
 
-use crate::{error::ApiError, types::OperationType, utils::to_pub};
-
 use super::matcher::InternalOperation;
 
-#[derive(Default, Clone, Debug, Deserialize, Serialize)]
+#[derive(Merge, Default, Clone, Debug, Deserialize, Serialize)]
 pub struct VoteOperationMetadata {
-    source: Option<String>,
-    destination: Option<String>,
-    lamports: Option<u64>,
-    authority: Option<String>,
-    voter: Option<String>,
-    withdrawer: Option<String>,
-    vote_pubkey: Option<String>,
-    comission: Option<u8>,
+    pub source: Option<String>,
+    pub destination: Option<String>,
+    pub lamports: Option<u64>,
+    pub authority: Option<String>,
+    pub voter: Option<String>,
+    pub withdrawer: Option<String>,
+    pub vote_pubkey: Option<String>,
+    pub comission: Option<u8>,
 }
 pub fn to_instruction(
     type_: OperationType,

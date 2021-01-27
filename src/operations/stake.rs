@@ -1,3 +1,4 @@
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 use solana_sdk::instruction::Instruction;
 use solana_stake_program::{
@@ -7,18 +8,17 @@ use solana_stake_program::{
 };
 
 use crate::{error::ApiError, types::OperationType, utils::to_pub};
-
-#[derive(Default, Clone, Debug, Deserialize, Serialize)]
+#[derive(Merge, Default, Clone, Debug, Deserialize, Serialize)]
 pub struct StakeOperationMetadata {
-    source: Option<String>,
+    pub source: Option<String>,
     #[serde(alias = "stake_pubkey")]
-    destination: Option<String>,
-    lamports: Option<u64>,
-    authority: Option<String>,
-    staker: Option<String>,
-    withdrawer: Option<String>,
-    vote_pubkey: Option<String>,
-    lockup: Option<LockupMeta>,
+    pub destination: Option<String>,
+    pub lamports: Option<u64>,
+    pub authority: Option<String>,
+    pub staker: Option<String>,
+    pub withdrawer: Option<String>,
+    pub vote_pubkey: Option<String>,
+    pub lockup: Option<LockupMeta>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StakeOperation {

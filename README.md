@@ -132,7 +132,7 @@ See `types::OperationType` to see full list of current operations supported . Th
 
 #### Simpler Operations
 
-This implementation also supports writing operations using metadata only. Instead of writing two operations for a simple transfer transaction one can simply write a single operation and fill it's metadata e.g `source`, `destination`, `authority`, `lamports` etc and it would still work. 
+This implementation also supports writing operations using metadata only. Instead of writing two operations for a simple transfer transaction one can simply write a single operation and fill it's metadata e.g `source`, `destination`, `authority`, `lamports`. 
 
 e.g 
 ```
@@ -161,6 +161,14 @@ e.g
     },
 ]
 ```
-Both are same operations although the first one(Rosetta spec) always overwrites the second one. The `metadata` keys are always same as their respective parsed json instructions in `solana-sdk`. See tests in `construction.rs` for complete examples.
+Both are same operations although the first one (Rosetta spec) always overwrites the second one.
+See tests in `construction.rs` to see complete examples.
+
+## TODO
+
+* Docs for every operation type
+* More operation types
+* More proprocess metadata fetching for every operation type
+
 ## License
 This project is available open source under the terms of the [Apache 2.0 License](https://opensource.org/licenses/Apache-2.0).

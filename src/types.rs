@@ -3,6 +3,8 @@ use solana_client::rpc_request::RpcRequest;
 use solana_sdk::{fee_calculator::FeeCalculator, hash::Hash};
 use solana_transaction_status::UiTransactionStatusMeta;
 
+use crate::operations::matcher::{InternalOperation, InternalOperationMetadata};
+
 // Objects
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -493,7 +495,8 @@ pub struct ConstructionPreprocessRequest {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConstructionPreprocessResponse {
-    pub options: MetadataOptions,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<MetadataOptions>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -603,7 +606,9 @@ pub struct Version {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct MetadataOptions {}
+pub struct MetadataOptions {
+    pub internal_operations: Vec<InternalOperation>,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ErrorDetails {
@@ -611,8 +616,10 @@ pub struct ErrorDetails {
     pub error: String,
 }
 
+pub type OptionalInternalOperationMetadatas = Option<Vec<Option<InternalOperationMetadata>>>;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConstructionMetadata {
     pub blockhash: String,
     pub fee_calculator: FeeCalculator,
+    pub internal_meta: OptionalInternalOperationMetadatas,
 }

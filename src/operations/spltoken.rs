@@ -1,18 +1,19 @@
+use crate::{error::ApiError, types::OperationType, utils::to_pub};
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, program_pack::Pack, system_instruction};
 use spl_token::state::Mint;
 
-use crate::{error::ApiError, types::OperationType, utils::to_pub};
-
-#[derive(Default, Clone, Debug, Deserialize, Serialize)]
+const MIN_RENT: u64 = 100000;
+#[derive(Merge, Default, Clone, Debug, Deserialize, Serialize)]
 pub struct SplTokenOperationMetadata {
-    source: Option<String>,
-    destination: Option<String>,
-    mint: Option<String>,
-    authority: Option<String>,
-    freeze_authority: Option<String>,
-    amount: Option<u64>,
-    decimals: Option<u8>,
+    pub source: Option<String>,
+    pub destination: Option<String>,
+    pub mint: Option<String>,
+    pub authority: Option<String>,
+    pub freeze_authority: Option<String>,
+    pub amount: Option<u64>,
+    pub decimals: Option<u8>,
 }
 
 pub fn to_instruction(
@@ -51,7 +52,7 @@ pub fn to_instruction(
             system_instruction::create_account(
                 &source,
                 &to_pub(&metadata.mint.clone().unwrap()),
-                0,
+                metadata.amount.unwrap(),
                 Mint::LEN as u64,
                 &spl_token::id(),
             ),
@@ -60,7 +61,7 @@ pub fn to_instruction(
                 &to_pub(&metadata.mint.unwrap()),
                 &to_pub(&metadata.authority.unwrap()),
                 freeze_authority,
-                metadata.decimals.unwrap(),
+                metadata.decimals.unwrap_or(2),
             )?,
         ],
         OperationType::SplToken__CreateAccount => vec![
@@ -95,9 +96,9 @@ pub fn to_instruction(
 
         OperationType::SplToken__MintTo => vec![spl_token::instruction::mint_to(
             &spl_token::id(),
-            &source,
             &to_pub(&metadata.mint.unwrap()),
             &source,
+            &to_pub(&metadata.authority.unwrap()),
             &vec![],
             metadata.amount.unwrap(),
         )?],

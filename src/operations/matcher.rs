@@ -1,3 +1,4 @@
+use merge::Merge;
 use serde_json::Value;
 use solana_sdk::instruction::Instruction;
 
@@ -5,19 +6,24 @@ use super::stake::*;
 use super::system::*;
 use super::vote::*;
 use super::{spltoken, spltoken::*, stake, system, vote};
-use crate::{error::ApiError, set_meta, types::Operation, types::OperationType, utils::to_pub};
-
-#[derive(Debug)]
+use crate::{
+    error::ApiError,
+    merge_meta, set_meta,
+    types::Operation,
+    types::{OperationType, OptionalInternalOperationMetadatas},
+};
+use serde::{Deserialize, Serialize};
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum InternalOperationMetadata {
     System(SystemOperationMetadata),
     Vote(VoteOperationMetadata),
     Stake(StakeOperationMetadata),
     SplToken(SplTokenOperationMetadata),
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InternalOperation {
     pub metadata: InternalOperationMetadata,
-    type_: OperationType,
+    pub type_: OperationType,
 }
 impl InternalOperation {
     fn to_instruction(self) -> Result<Vec<Instruction>, ApiError> {
@@ -32,13 +38,15 @@ impl InternalOperation {
 pub struct Matcher<'a> {
     checked_indexes: Vec<u64>,
     operations: &'a Vec<Operation>,
+    meta: OptionalInternalOperationMetadatas,
 }
 
 impl<'a> Matcher<'a> {
-    pub fn new(operations: &Vec<Operation>) -> Matcher {
+    pub fn new(operations: &Vec<Operation>, meta: OptionalInternalOperationMetadatas) -> Matcher {
         Matcher {
             operations,
             checked_indexes: vec![],
+            meta,
         }
     }
     pub fn to_instructions(&mut self) -> Result<Vec<Instruction>, ApiError> {
@@ -49,6 +57,7 @@ impl<'a> Matcher<'a> {
             .flatten()
             .collect())
     }
+
     pub fn combine(&mut self) -> Result<Vec<InternalOperation>, ApiError> {
         let mut internal_operations = vec![];
         for i in 0..self.operations.len() {
@@ -103,7 +112,7 @@ impl<'a> Matcher<'a> {
                                 if let Value::Object(ref mut map) = m {
                                     map.insert(
                                         "source".to_string(),
-                                        serde_json::Value::String(source),
+                                        serde_json::Value::String(source.clone()),
                                     );
                                     map.insert(
                                         "destination".to_string(),
@@ -135,7 +144,20 @@ impl<'a> Matcher<'a> {
                                     "source".to_string(),
                                     serde_json::Value::String(acc.address.clone()),
                                 );
+                                if map.get("authority").is_none() {
+                                    map.insert(
+                                        "authority".to_string(),
+                                        serde_json::Value::String(acc.address.clone()),
+                                    );
+                                }
                             }
+                        }
+                    }
+                }
+                if let Some(ref mut m) = meta_clone {
+                    if let Value::Object(ref mut map) = m {
+                        if map.get("authority").is_none() {
+                            map.insert("authority".to_string(), map.get("source").unwrap().clone());
                         }
                     }
                 }
@@ -148,7 +170,9 @@ impl<'a> Matcher<'a> {
                     | OperationType::System__AdvanceNonceAccount
                     | OperationType::System__WithdrawNonceAccount
                     | OperationType::System__AuthorizeNonceAccount => {
-                        let new_metadata = set_meta!(meta_clone, SystemOperationMetadata);
+                        let mut new_metadata = set_meta!(meta_clone, SystemOperationMetadata);
+                        merge_meta!(new_metadata, &self.meta, internal_operations.len(), System);
+
                         internal_operations.push(InternalOperation {
                             type_: operation.type_,
                             metadata: InternalOperationMetadata::System(new_metadata),
@@ -168,7 +192,14 @@ impl<'a> Matcher<'a> {
                     | OperationType::SplToken__ThawAccount
                     | OperationType::SplToken__TransferChecked
                     | OperationType::SplToken__CreateAssocAccount => {
-                        let new_metadata = set_meta!(meta_clone, SplTokenOperationMetadata);
+                        let mut new_metadata = set_meta!(meta_clone, SplTokenOperationMetadata);
+                        merge_meta!(
+                            new_metadata,
+                            &self.meta,
+                            internal_operations.len(),
+                            SplToken
+                        );
+
                         internal_operations.push(InternalOperation {
                             type_: operation.type_,
                             metadata: InternalOperationMetadata::SplToken(new_metadata),
@@ -182,7 +213,8 @@ impl<'a> Matcher<'a> {
                     | OperationType::Stake__Withdraw
                     | OperationType::Stake__Deactivate
                     | OperationType::Stake__SetLockup => {
-                        let new_metadata = set_meta!(meta_clone, StakeOperationMetadata);
+                        let mut new_metadata = set_meta!(meta_clone, StakeOperationMetadata);
+                        merge_meta!(new_metadata, &self.meta, internal_operations.len(), Stake);
                         internal_operations.push(InternalOperation {
                             type_: operation.type_,
                             metadata: InternalOperationMetadata::Stake(new_metadata),
@@ -193,7 +225,8 @@ impl<'a> Matcher<'a> {
                     | OperationType::Vote__Withdraw
                     | OperationType::Vote__UpdateValidatorIdentity
                     | OperationType::Vote__UpdateCommission => {
-                        let new_metadata = set_meta!(meta_clone, VoteOperationMetadata);
+                        let mut new_metadata = set_meta!(meta_clone, VoteOperationMetadata);
+                        merge_meta!(new_metadata, &self.meta, internal_operations.len(), Vote);
                         internal_operations.push(InternalOperation {
                             type_: operation.type_,
                             metadata: InternalOperationMetadata::Vote(new_metadata),
@@ -328,7 +361,7 @@ mod tests {
                 })),
             },
         ];
-        let mut matcher = Matcher::new(&operations);
+        let mut matcher = Matcher::new(&operations, None);
         let ops = matcher.combine().unwrap();
         assert_eq!(ops.len(), 3);
         println!("{:?}", ops);
