@@ -4,8 +4,6 @@
   </a>
 </p>
 
-[![Rosetta Solana documentation](https://docs.rs/rosetta-solana/badge.svg)](https://docs.rs/rosetta-solana)
-
 <h3 align="center">
    Rosetta Solana
 </h3>
