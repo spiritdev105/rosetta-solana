@@ -65,6 +65,7 @@ fn main() {
             network_options,
             construction_derive,
             construction_preprocess,
+            construction_payloads,
             construction_combine,
             construction_parse,
             construction_hash
