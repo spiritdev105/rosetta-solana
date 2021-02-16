@@ -23,6 +23,7 @@ convert_case="0.4.0"
 merge="0.1.0"
 
 spl-token = { version="3.0.1", features = ["no-entrypoint"] }
+spl-feature-proposal = { version="1.0.0" }
 #spl-token-v3 = { version="3.0.1", features = ["no-entrypoint"] }
 spl-associated-token-account = { version="1.0.2", features = ["no-entrypoint"] }
 solana-sdk = { version="1.4.17" }

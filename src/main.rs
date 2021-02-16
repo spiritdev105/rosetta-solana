@@ -9,6 +9,7 @@ mod call;
 mod construction;
 mod consts;
 mod error;
+mod features;
 mod network;
 mod operations;
 mod types;
@@ -21,7 +22,10 @@ use api_routes::data::*;
 use call::RpcSender2;
 use error::ApiError;
 //use routes::construction::*;
-use rocket::{config::Environment, Config};
+use rocket::{
+    config::Environment, fairing::Fairing, fairing::Info, fairing::Kind, http::Header, Config,
+    Request, Response,
+};
 use solana_client::rpc_client::RpcClient;
 use types::NetworkIdentifier;
 
@@ -41,6 +45,27 @@ fn get_rocket_env() -> Environment {
 #[cfg(not(debug_assertions))]
 fn get_rocket_env() -> Environment {
     Environment::Production
+}
+
+pub struct CORS();
+
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to requests",
+            kind: Kind::Response,
+        }
+    }
+
+    fn on_response(&self, request: &Request, response: &mut Response) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new(
+            "Access-Control-Allow-Methods",
+            "POST, GET, PATCH, OPTIONS",
+        ));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
 }
 
 fn main() {
@@ -79,6 +104,7 @@ fn main() {
             get_block, // /block
             block_transaction,
             call,
+            features, //optional extra solana specific
             //TODO: offline paths are not disabled in online mode
             construction_combine,
             construction_derive,
@@ -98,6 +124,7 @@ fn main() {
         .mount("/", r)
         .manage(options)
         .manage(options2)
+        .attach(CORS())
         //.register(catchers![internal_error])
         .launch();
 }

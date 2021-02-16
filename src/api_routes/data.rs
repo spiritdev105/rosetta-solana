@@ -2,12 +2,14 @@ use crate::{
     account, block,
     call::call_direct,
     error::ApiError,
+    features::get_features,
     network,
     types::CallRequest,
+    types::FeaturesRequest,
     types::{
         AccountBalanceRequest, AccountBalanceResponse, BlockRequest, BlockResponse,
-        BlockTransactionRequest, BlockTransactionResponse, CallResponse, NetworkListResponse,
-        NetworkOptionsResponse, NetworkRequest, NetworkStatusResponse,
+        BlockTransactionRequest, BlockTransactionResponse, CallResponse, FeaturesResponse,
+        NetworkListResponse, NetworkOptionsResponse, NetworkRequest, NetworkStatusResponse,
     },
     Options, Options2,
 };
@@ -64,4 +66,12 @@ pub fn call(
     options2: State<Options2>,
 ) -> Result<Json<CallResponse>, ApiError> {
     call_direct(call_request.into_inner(), options.inner(), options2.inner())
+}
+
+#[post("/features", data = "<features_request>")]
+pub fn features(
+    features_request: Json<FeaturesRequest>,
+    options: State<Options>,
+) -> Result<Json<FeaturesResponse>, ApiError> {
+    get_features(features_request.into_inner(), options.inner())
 }

@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_request::RpcRequest;
-use solana_sdk::{fee_calculator::FeeCalculator, hash::Hash};
+use solana_sdk::{clock::UnixTimestamp, fee_calculator::FeeCalculator, hash::Hash};
 use solana_transaction_status::UiTransactionStatusMeta;
+use spl_feature_proposal::instruction::FeatureProposalInstruction;
 
 use crate::operations::matcher::{InternalOperation, InternalOperationMetadata};
 
@@ -657,4 +658,34 @@ pub struct WithNonce {
     pub account: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authority: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FeaturesRequest {
+    pub network_identifier: NetworkIdentifier,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FeaturesResponse {
+    pub features: Vec<Feature>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Feature {
+    pub name: String,
+    pub funding_address: String,
+    pub feature_proposal_address: String,
+    pub mint_address: String,
+    pub distributor_token_address: String,
+    pub acceptance_token_address: String,
+    pub feature_id_address: String,
+    pub tokens_to_mint: u64,
+    pub acceptance_criteria: AcceptanceCriteria,
+}
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+pub struct AcceptanceCriteria {
+    /// The balance of the feature proposal's token account must be greater than this amount, and
+    /// tallied before the deadline for the feature to be accepted.
+    pub tokens_required: u64,
+
+    /// If the required tokens are not tallied by this deadline then the proposal will expire.
+    pub deadline: UnixTimestamp,
 }
