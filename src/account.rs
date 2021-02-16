@@ -58,8 +58,8 @@ pub fn account_balance(
         vec![]
     };
 
-    let token_acc = options.rpc.get_token_account(&pubkey)?;
-    if let Some(x) = token_acc {
+    let token_acc = options.rpc.get_token_account(&pubkey);
+    if let Ok(Some(x)) = token_acc {
         let symbol = x.mint;
 
         if symbols.len() == 0 || symbols.contains(&symbol.as_str()) {
